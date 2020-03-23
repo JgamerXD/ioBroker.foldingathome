@@ -1,0 +1,94 @@
+{
+    "common": {
+        "name": "fah",
+        "version": "0.0.1",
+        "news": {
+            "0.0.1": {
+                "en": "initial release",
+                "de": "Erstveröffentlichung",
+                "ru": "Начальная версия",
+                "pt": "lançamento inicial",
+                "nl": "Eerste uitgave",
+                "fr": "Première version",
+                "it": "Versione iniziale",
+                "es": "Versión inicial",
+                "pl": "Pierwsze wydanie",
+                "zh-cn": "首次出版"
+            }
+        },
+        "title": "Folding@home status",
+        "titleLang": {
+            "en": "Folding@home status",
+            "de": "Folding @ home Status",
+            "ru": "Складной @ домашний статус",
+            "pt": "Status Folding @ home",
+            "nl": "Folding @ home status",
+            "fr": "Statut Folding @ home",
+            "it": "Stato pieghevole @ home",
+            "es": "Plegable @ estado de casa",
+            "pl": "Folding @ home status",
+            "zh-cn": "折叠@家庭状态"
+        },
+        "desc": {
+            "en": "get information about Folding@home clients",
+            "de": "Informationen zu Folding @ home-Kunden erhalten",
+            "ru": "получить информацию о клиентах Folding @ home",
+            "pt": "obter informações sobre clientes do Folding @ home",
+            "nl": "informatie krijgen over Folding @ home-clients",
+            "fr": "obtenir des informations sur les clients Folding @ home",
+            "it": "ottenere informazioni sui client di Folding @ home",
+            "es": "obtener información sobre clientes de Folding @ home",
+            "pl": "uzyskać informacje o klientach Folding @ home",
+            "zh-cn": "获取有关Folding @ home客户的信息"
+        },
+        "authors": ["JgamerXD <jgamerlp@gmail.com>"],
+        "keywords": ["Folding@home"],
+        "license": "MIT",
+        "platform": "Javascript/Node.js",
+        "main": "build/main.js",
+        "icon": "fah.png",
+        "enabled": true,
+        "extIcon": "https://raw.githubusercontent.com/JgamerXD/ioBroker.fah/master/admin/fah.png",
+        "readme": "https://github.com/JgamerXD/ioBroker.fah/blob/master/README.md",
+        "loglevel": "info",
+        "mode": "daemon",
+        "type": "health",
+        "compact": true,
+        "connectionType": "local",
+        "dataSource": "push",
+        "materialize": true,
+        "dependencies": [
+            {
+                "js-controller": ">=1.4.2"
+            }
+        ]
+    },
+    "native": {
+        "option1": true,
+        "option2": "42"
+    },
+    "objects": [],
+    "instanceObjects": [
+        {
+            "_id": "info",
+            "type": "channel",
+            "common": {
+                "name": "Information"
+            },
+            "native": {}
+        },
+        {
+            "_id": "info.connection",
+            "type": "state",
+            "common": {
+                "role": "indicator.connected",
+                "name": "Device or service connected",
+                "type": "boolean",
+                "read": true,
+                "write": false,
+                "def": false
+            },
+            "native": {}
+        }
+    ]
+}
