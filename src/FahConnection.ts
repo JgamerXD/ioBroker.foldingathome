@@ -4,7 +4,7 @@ import Telnet, { ConnectOptions } from "telnet-client";
 
 export default class FahConnection extends EventEmitter {
     log: ioBroker.Logger;
-    telnetClient: Telnet;
+    telnetClient: null | Telnet;
     connectionParams: ConnectOptions;
     password: string;
     connectionAddress: string;
@@ -18,15 +18,16 @@ export default class FahConnection extends EventEmitter {
     isConnected: boolean;
     isConnecting: boolean;
     shellPrompt: string;
+    reconnectDelay: number;
 
-    constructor(log: ioBroker.Logger, host: string, port: number, password = "") {
+    constructor(log: ioBroker.Logger, host: string, port: number, password = "", reconnectDelay = 300000) {
         super();
 
         // Bind this to function
         this.onData = this.onData.bind(this);
 
         this.log = log;
-        this.telnetClient = new Telnet();
+        this.telnetClient = null;
         this.connectionParams = {
             host,
             port,
@@ -45,6 +46,7 @@ export default class FahConnection extends EventEmitter {
         this.isConnected = false;
         this.isConnecting = false;
         this.shellPrompt = "> ";
+        this.reconnectDelay = reconnectDelay;
 
         this.fah = {
             alive: false,
@@ -52,40 +54,49 @@ export default class FahConnection extends EventEmitter {
             slots: [],
             queue: [],
         };
-
-        this.telnetClient.on("timeout", () => {
-            this.log.info(`[${this.connectionId}] timeout`);
-            this.telnetClient.end();
-        });
-        this.telnetClient.on("close", () => {
-            if (this.heartbeatTimeout) {
-                clearTimeout(this.heartbeatTimeout);
-            }
-
-            this.log.info(`[${this.connectionId}] closed`);
-            this.emit("connectionUpdate", this, "disconnected");
-
-            this.isConnected = false;
-            if (!this.isShuttingDown && !this.reconnectTimeout) {
-                try {
-                    this.reconnectTimeout = setTimeout(() => {
-                        this.reconnectTimeout = undefined;
-                        this.log.info(`[${this.connectionId}] reconnect...`);
-                        this.isConnecting = true;
-                        this.telnetClient.connect(this.connectionParams);
-                    }, 300000);
-                } catch (error) {
-                    this.log.error(error);
-                }
-            }
-        });
-        this.telnetClient.on("data", this.onData);
     }
 
     async connect(): Promise<void> {
         this.log.info(`[${this.connectionId}] connecting...`);
         this.emit("connectionUpdate", this, "connecting");
         this.isConnecting = true;
+
+        if (this.telnetClient !== null) {
+            throw "connection already open, disconnect first";
+        }
+        this.telnetClient = new Telnet();
+
+        this.telnetClient.on("timeout", () => {
+            this.log.warn(`[${this.connectionId}] timeout`);
+            if (this.telnetClient !== null) {
+                this.telnetClient.end();
+            }
+        });
+        this.telnetClient.on("close", () => {
+            if (this.heartbeatTimeout) {
+                clearTimeout(this.heartbeatTimeout);
+                this.heartbeatTimeout = undefined;
+            }
+
+            this.emit("aliveUpdate", this, false);
+            this.fah.alive = false;
+
+            this.log.info(`[${this.connectionId}] closed`);
+            this.emit("connectionUpdate", this, "disconnected");
+
+            this.telnetClient = null;
+
+            this.isConnected = false;
+            if (!this.isShuttingDown && !this.reconnectTimeout) {
+                this.reconnectTimeout = setTimeout(() => {
+                    this.reconnectTimeout = undefined;
+                    this.log.info(`[${this.connectionId}] try to reconnect`);
+                    this.isConnecting = true;
+                    this.connect();
+                }, this.reconnectDelay);
+            }
+        });
+        this.telnetClient.on("data", this.onData);
 
         try {
             await this.telnetClient.connect(this.connectionParams);
@@ -122,17 +133,31 @@ export default class FahConnection extends EventEmitter {
             clearTimeout(this.reconnectTimeout);
             this.reconnectTimeout = undefined;
         }
+        if (this.heartbeatTimeout) {
+            clearTimeout(this.heartbeatTimeout);
+            this.heartbeatTimeout = undefined;
+        }
+
         this.isShuttingDown = true;
-        return new Promise((resolve) => {
-            this.telnetClient.on("close", () => {
-                this.emit("connectionUpdate", this, "disconnected");
+        await new Promise((resolve) => {
+            if (this.telnetClient !== null) {
+                this.telnetClient.on("close", () => {
+                    this.emit("connectionUpdate", this, "disconnected");
+                    this.emit("aliveUpdate", this, false);
+                    this.fah.alive = false;
+                    resolve();
+                });
+                this.telnetClient.end().catch((e) => {
+                    this.log.error(`[${this.connectionId}] disconnect error:\n${e}`);
+                    if (this.telnetClient !== null) {
+                        this.telnetClient.destroy();
+                        this.telnetClient = null;
+                    }
+                    resolve();
+                });
+            } else {
                 resolve();
-            });
-            this.telnetClient.end().catch((e) => {
-                this.log.error(`[${this.connectionId}] disconnect error:\n${e}`);
-                this.telnetClient.destroy();
-                resolve();
-            });
+            }
         });
     }
 
@@ -150,7 +175,7 @@ export default class FahConnection extends EventEmitter {
                 const obj = JSON.parse(jsonString);
                 return { isPyON: true, version: matches[1], command: matches[2], obj, error: false };
             } catch (error) {
-                this.log.error(error);
+                this.log.error(`[${this.connectionId}] parse error:\n${error}`);
                 this.log.error(PyONString);
                 return { isPyON: true, version: matches[1], command: matches[2], error: true };
             }
@@ -187,6 +212,7 @@ export default class FahConnection extends EventEmitter {
                             this.fah.alive = true;
                             if (this.heartbeatTimeout) {
                                 clearTimeout(this.heartbeatTimeout);
+                                this.heartbeatTimeout = undefined;
                             }
                             if (!this.isShuttingDown) {
                                 this.heartbeatTimeout = setTimeout(() => {

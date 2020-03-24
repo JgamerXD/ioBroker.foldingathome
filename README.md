@@ -32,6 +32,11 @@ These settings can be accessed through `Advanced Control -> Configure -> Remote 
 
 Configure hostname, port and password of the Folding@home instance. An empty password disables authentication, leave the field empty if you do not have a password set in Folding@home or you have added your ioBrokers ip address to the "Allow" passwordless ip address restriction list.
 
+## Todo
+
+-   [ ] Multiple connections
+-   [ ] ability to set options
+
 ## Developer manual
 
 This section is intended for the developer. It can be deleted later
