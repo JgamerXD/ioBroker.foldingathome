@@ -18,8 +18,9 @@ export default class FahConnection extends EventEmitter {
     isConnected: boolean;
     isConnecting: boolean;
     shellPrompt: string;
+    reconnectDelay: number;
 
-    constructor(log: ioBroker.Logger, host: string, port: number, password = "") {
+    constructor(log: ioBroker.Logger, host: string, port: number, password = "", reconnectDelay = 300000) {
         super();
 
         // Bind this to function
@@ -45,6 +46,7 @@ export default class FahConnection extends EventEmitter {
         this.isConnected = false;
         this.isConnecting = false;
         this.shellPrompt = "> ";
+        this.reconnectDelay = reconnectDelay;
 
         this.fah = {
             alive: false,
@@ -54,29 +56,33 @@ export default class FahConnection extends EventEmitter {
         };
 
         this.telnetClient.on("timeout", () => {
-            this.log.info(`[${this.connectionId}] timeout`);
+            this.log.warn(`[${this.connectionId}] timeout`);
             this.telnetClient.end();
         });
         this.telnetClient.on("close", () => {
             if (this.heartbeatTimeout) {
                 clearTimeout(this.heartbeatTimeout);
+                this.heartbeatTimeout = undefined;
             }
+
+            this.emit("aliveUpdate", this, false);
+            this.fah.alive = false;
 
             this.log.info(`[${this.connectionId}] closed`);
             this.emit("connectionUpdate", this, "disconnected");
 
             this.isConnected = false;
             if (!this.isShuttingDown && !this.reconnectTimeout) {
-                try {
-                    this.reconnectTimeout = setTimeout(() => {
-                        this.reconnectTimeout = undefined;
-                        this.log.info(`[${this.connectionId}] reconnect...`);
-                        this.isConnecting = true;
-                        this.telnetClient.connect(this.connectionParams);
-                    }, 300000);
-                } catch (error) {
-                    this.log.error(error);
-                }
+                // try {
+                this.reconnectTimeout = setTimeout(() => {
+                    this.reconnectTimeout = undefined;
+                    this.log.info(`[${this.connectionId}] reconnect...`);
+                    this.isConnecting = true;
+                    this.telnetClient.connect(this.connectionParams);
+                }, this.reconnectDelay);
+                // } catch (error) {
+                //     this.log.error(`[${this.connectionId}] reconnect error:\n${error}`);
+                // }
             }
         });
         this.telnetClient.on("data", this.onData);
@@ -122,10 +128,17 @@ export default class FahConnection extends EventEmitter {
             clearTimeout(this.reconnectTimeout);
             this.reconnectTimeout = undefined;
         }
+        if (this.heartbeatTimeout) {
+            clearTimeout(this.heartbeatTimeout);
+            this.heartbeatTimeout = undefined;
+        }
+
         this.isShuttingDown = true;
         return new Promise((resolve) => {
             this.telnetClient.on("close", () => {
                 this.emit("connectionUpdate", this, "disconnected");
+                this.emit("aliveUpdate", this, false);
+                this.fah.alive = false;
                 resolve();
             });
             this.telnetClient.end().catch((e) => {
@@ -150,7 +163,7 @@ export default class FahConnection extends EventEmitter {
                 const obj = JSON.parse(jsonString);
                 return { isPyON: true, version: matches[1], command: matches[2], obj, error: false };
             } catch (error) {
-                this.log.error(error);
+                this.log.error(`[${this.connectionId}] parse error:\n${error}`);
                 this.log.error(PyONString);
                 return { isPyON: true, version: matches[1], command: matches[2], error: true };
             }
@@ -187,6 +200,7 @@ export default class FahConnection extends EventEmitter {
                             this.fah.alive = true;
                             if (this.heartbeatTimeout) {
                                 clearTimeout(this.heartbeatTimeout);
+                                this.heartbeatTimeout = undefined;
                             }
                             if (!this.isShuttingDown) {
                                 this.heartbeatTimeout = setTimeout(() => {

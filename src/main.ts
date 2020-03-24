@@ -16,6 +16,7 @@ declare global {
     // eslint-disable-next-line @typescript-eslint/no-namespace
     namespace ioBroker {
         interface AdapterConfig {
+            foldingathome__reconnect_delay: number;
             foldingathome__host: string;
             foldingathome__port: number;
             foldingathome__password: string;
@@ -56,6 +57,7 @@ class Foldingathome extends utils.Adapter {
 
         // The adapters config (in the instance object everything under the attribute "native") is accessible via
         // this.config:
+        this.log.info("config reconnect_timeout: " + this.config.foldingathome__reconnect_delay);
         this.log.info("config host: " + this.config.foldingathome__host);
         this.log.info("config port: " + this.config.foldingathome__port);
         this.log.info("config password: " + this.config.foldingathome__password);
@@ -67,11 +69,12 @@ class Foldingathome extends utils.Adapter {
                 this.config.foldingathome__host,
                 this.config.foldingathome__port,
                 this.config.foldingathome__password,
+                this.config.foldingathome__reconnect_delay,
             );
             this.fahConnections.push(fahConnection);
 
             for (const connection of this.fahConnections) {
-                this.log.info(connection.connectionId);
+                this.log.debug(`[main] creating connection ${connection.connectionId}`);
                 this.createConnectionStates(connection);
 
                 connection.on("optionsUpdate", this.writeOptionStates);
@@ -81,8 +84,6 @@ class Foldingathome extends utils.Adapter {
                 connection.on("aliveUpdate", this.writeAliveState);
                 connection.connect();
             }
-
-            this.setState("info.connection", true, true);
         } catch (error) {
             this.log.error(error);
         }
@@ -168,6 +169,13 @@ class Foldingathome extends utils.Adapter {
         if (alive !== connection.fah.alive) {
             this.setState(`${connection.connectionId}.alive`, alive, true);
         }
+
+        // Check if all connections are alive
+        let allAlive = true;
+        this.fahConnections.forEach((fahc) => {
+            allAlive = allAlive && fahc.fah.alive;
+        });
+        this.setState("info.connection", allAlive, true);
     }
 
     writeOptionStates(connection: FahConnection, options: FahOptionsType): void {
