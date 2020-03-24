@@ -1,6 +1,6 @@
 {
     "common": {
-        "name": "fah",
+        "name": "foldingathome",
         "version": "0.0.1",
         "news": {
             "0.0.1": {
@@ -31,7 +31,7 @@
         },
         "desc": {
             "en": "get information about Folding@home clients",
-            "de": "Informationen zu Folding @ home-Kunden erhalten",
+            "de": "Informationen zu Folding@home-clients erhalten",
             "ru": "получить информацию о клиентах Folding @ home",
             "pt": "obter informações sobre clientes do Folding @ home",
             "nl": "informatie krijgen over Folding @ home-clients",
@@ -41,15 +41,19 @@
             "pl": "uzyskać informacje o klientach Folding @ home",
             "zh-cn": "获取有关Folding @ home客户的信息"
         },
-        "authors": ["JgamerXD <jgamerlp@gmail.com>"],
-        "keywords": ["Folding@home"],
+        "authors": [
+            "JgamerXD <jgamerlp@gmail.com>"
+        ],
+        "keywords": [
+            "Folding@home"
+        ],
         "license": "MIT",
         "platform": "Javascript/Node.js",
         "main": "build/main.js",
-        "icon": "fah.png",
+        "icon": "foldingathome.png",
         "enabled": true,
-        "extIcon": "https://raw.githubusercontent.com/JgamerXD/ioBroker.fah/master/admin/fah.png",
-        "readme": "https://github.com/JgamerXD/ioBroker.fah/blob/master/README.md",
+        "extIcon": "https://raw.githubusercontent.com/JgamerXD/ioBroker.foldingathome/master/admin/foldingathome.png",
+        "readme": "https://github.com/JgamerXD/ioBroker.foldingathome/blob/master/README.md",
         "loglevel": "info",
         "mode": "daemon",
         "type": "health",
@@ -64,8 +68,9 @@
         ]
     },
     "native": {
-        "option1": true,
-        "option2": "42"
+        "foldingathome__host": "localhost",
+        "foldingathome__port": "36330",
+        "foldingathome__password": ""
     },
     "objects": [],
     "instanceObjects": [

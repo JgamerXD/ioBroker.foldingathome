@@ -1,22 +1,23 @@
 {
-  "name": "iobroker.fah",
+  "name": "iobroker.foldingathome",
   "version": "0.0.1",
   "description": "get information about Folding@home clients",
   "author": {
     "name": "JgamerXD",
     "email": "jgamerlp@gmail.com"
   },
-  "homepage": "https://github.com/JgamerXD/ioBroker.fah",
+  "homepage": "https://github.com/JgamerXD/ioBroker.foldingathome",
   "license": "MIT",
   "keywords": [
     "Folding@home"
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/JgamerXD/ioBroker.fah"
+    "url": "https://github.com/JgamerXD/ioBroker.foldingathome"
   },
   "dependencies": {
-    "@iobroker/adapter-core": "^2.2.1"
+    "@iobroker/adapter-core": "^2.2.1",
+    "telnet-client": "^1.2.11"
   },
   "devDependencies": {
     "@iobroker/testing": "^2.1.0",
@@ -84,7 +85,7 @@
     "instrument": true
   },
   "bugs": {
-    "url": "https://github.com/JgamerXD/ioBroker.fah/issues"
+    "url": "https://github.com/JgamerXD/ioBroker.foldingathome/issues"
   },
   "readmeFilename": "README.md"
 }
