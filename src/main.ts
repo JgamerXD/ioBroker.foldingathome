@@ -169,13 +169,14 @@ class Foldingathome extends utils.Adapter {
         if (alive !== connection.fah.alive) {
             this.setState(`${connection.connectionId}.alive`, alive, true);
         }
-
-        // Check if all connections are alive
-        let allAlive = true;
-        this.fahConnections.forEach((fahc) => {
-            allAlive = allAlive && fahc.fah.alive;
+        setImmediate(() => {
+            // Check if all connections are alive
+            let allAlive = true;
+            this.fahConnections.forEach((fahc) => {
+                allAlive = allAlive && fahc.fah.alive;
+            });
+            this.setState("info.connection", allAlive, true);
         });
-        this.setState("info.connection", allAlive, true);
     }
 
     writeOptionStates(connection: FahConnection, options: FahOptionsType): void {

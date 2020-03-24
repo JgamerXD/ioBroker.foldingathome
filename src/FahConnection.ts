@@ -4,7 +4,7 @@ import Telnet, { ConnectOptions } from "telnet-client";
 
 export default class FahConnection extends EventEmitter {
     log: ioBroker.Logger;
-    telnetClient: Telnet;
+    telnetClient: null | Telnet;
     connectionParams: ConnectOptions;
     password: string;
     connectionAddress: string;
@@ -27,7 +27,7 @@ export default class FahConnection extends EventEmitter {
         this.onData = this.onData.bind(this);
 
         this.log = log;
-        this.telnetClient = new Telnet();
+        this.telnetClient = null;
         this.connectionParams = {
             host,
             port,
@@ -54,10 +54,23 @@ export default class FahConnection extends EventEmitter {
             slots: [],
             queue: [],
         };
+    }
+
+    async connect(): Promise<void> {
+        this.log.info(`[${this.connectionId}] connecting...`);
+        this.emit("connectionUpdate", this, "connecting");
+        this.isConnecting = true;
+
+        if (this.telnetClient !== null) {
+            throw "connection already open, disconnect first";
+        }
+        this.telnetClient = new Telnet();
 
         this.telnetClient.on("timeout", () => {
             this.log.warn(`[${this.connectionId}] timeout`);
-            this.telnetClient.end();
+            if (this.telnetClient !== null) {
+                this.telnetClient.end();
+            }
         });
         this.telnetClient.on("close", () => {
             if (this.heartbeatTimeout) {
@@ -71,27 +84,19 @@ export default class FahConnection extends EventEmitter {
             this.log.info(`[${this.connectionId}] closed`);
             this.emit("connectionUpdate", this, "disconnected");
 
+            this.telnetClient = null;
+
             this.isConnected = false;
             if (!this.isShuttingDown && !this.reconnectTimeout) {
-                // try {
                 this.reconnectTimeout = setTimeout(() => {
                     this.reconnectTimeout = undefined;
-                    this.log.info(`[${this.connectionId}] reconnect...`);
+                    this.log.info(`[${this.connectionId}] try to reconnect`);
                     this.isConnecting = true;
-                    this.telnetClient.connect(this.connectionParams);
+                    this.connect();
                 }, this.reconnectDelay);
-                // } catch (error) {
-                //     this.log.error(`[${this.connectionId}] reconnect error:\n${error}`);
-                // }
             }
         });
         this.telnetClient.on("data", this.onData);
-    }
-
-    async connect(): Promise<void> {
-        this.log.info(`[${this.connectionId}] connecting...`);
-        this.emit("connectionUpdate", this, "connecting");
-        this.isConnecting = true;
 
         try {
             await this.telnetClient.connect(this.connectionParams);
@@ -134,18 +139,25 @@ export default class FahConnection extends EventEmitter {
         }
 
         this.isShuttingDown = true;
-        return new Promise((resolve) => {
-            this.telnetClient.on("close", () => {
-                this.emit("connectionUpdate", this, "disconnected");
-                this.emit("aliveUpdate", this, false);
-                this.fah.alive = false;
+        await new Promise((resolve) => {
+            if (this.telnetClient !== null) {
+                this.telnetClient.on("close", () => {
+                    this.emit("connectionUpdate", this, "disconnected");
+                    this.emit("aliveUpdate", this, false);
+                    this.fah.alive = false;
+                    resolve();
+                });
+                this.telnetClient.end().catch((e) => {
+                    this.log.error(`[${this.connectionId}] disconnect error:\n${e}`);
+                    if (this.telnetClient !== null) {
+                        this.telnetClient.destroy();
+                        this.telnetClient = null;
+                    }
+                    resolve();
+                });
+            } else {
                 resolve();
-            });
-            this.telnetClient.end().catch((e) => {
-                this.log.error(`[${this.connectionId}] disconnect error:\n${e}`);
-                this.telnetClient.destroy();
-                resolve();
-            });
+            }
         });
     }
 
