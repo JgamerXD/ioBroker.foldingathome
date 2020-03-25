@@ -6,6 +6,10 @@ nbproject/
 *.code-workspace
 Thumbs.db
 gulpfile.js
+.*
+.*/
+*.bat
+*.sh
 
 # CI test files
 test/
