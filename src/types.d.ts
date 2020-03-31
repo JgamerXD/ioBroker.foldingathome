@@ -21,7 +21,7 @@ type FahSlotType = {
     reason: string;
     idle: boolean;
 };
-type FahQueueEntryType = {
+type FahWorkUnitType = {
     id: string; // TODO: number
     state: string;
     error: string;
@@ -34,7 +34,7 @@ type FahQueueEntryType = {
     percentdone: string; // TODO: number
     eta: string; // TODO: duration/time
     ppd: string; // TODO: number
-    creditestimate: number;
+    creditestimate: string; // TODO: number
     waitingon: string;
     nextattempt: string; // TODO: duration/time
     timeremaining: string; // TODO: duration/time
