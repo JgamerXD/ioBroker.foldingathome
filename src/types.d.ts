@@ -1,3 +1,9 @@
+type FahDataType = {
+    alive: boolean;
+    options: FahOptionsType;
+    slots: Array<FahSlotType>;
+    queue: Array<FahWorkUnitType>;
+};
 type FahOptionsType = {
     user: string;
     team: string; // number

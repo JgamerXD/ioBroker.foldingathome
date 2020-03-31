@@ -10,7 +10,7 @@ export default class FahConnection extends EventEmitter {
     connectionAddress: string;
     connectionId: string;
 
-    fah: { alive: boolean; options: FahOptionsType; slots: [FahSlotType?]; queue: [FahQueueEntryType?] };
+    fah: FahDataType;
 
     isShuttingDown: boolean;
     heartbeatTimeout: undefined | NodeJS.Timeout;
