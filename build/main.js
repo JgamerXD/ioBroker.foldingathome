@@ -29,11 +29,8 @@ class Foldingathome extends utils.Adapter {
         // this.on("message", this.onMessage.bind(this));
         this.on("unload", this.onUnload.bind(this));
         this.fahConnections = [];
-        this.writeOptionStates = this.writeOptionStates.bind(this);
-        this.writeQueueStates = this.writeQueueStates.bind(this);
-        this.writeSlotStates = this.writeSlotStates.bind(this);
+        this.onConnectionDataUpdate = this.onConnectionDataUpdate.bind(this);
         this.writeConnectionState = this.writeConnectionState.bind(this);
-        this.writeAliveState = this.writeAliveState.bind(this);
     }
     /**
      * Is called when databases are connected and adapter received configuration.
@@ -44,10 +41,10 @@ class Foldingathome extends utils.Adapter {
         this.setState("info.connection", false, true);
         // The adapters config (in the instance object everything under the attribute "native") is accessible via
         // this.config:
-        this.log.info("config reconnect_timeout: " + this.config.foldingathome__reconnect_delay);
-        this.log.info("config host: " + this.config.foldingathome__host);
-        this.log.info("config port: " + this.config.foldingathome__port);
-        this.log.info("config password: " + this.config.foldingathome__password);
+        this.log.info("[main] config reconnect_timeout: " + this.config.foldingathome__reconnect_delay);
+        this.log.info("[main] config host: " + this.config.foldingathome__host);
+        this.log.info("[main] config port: " + this.config.foldingathome__port);
+        this.log.info("[main] config password: " + this.config.foldingathome__password);
         try {
             // TODO: multiple connections
             const fahConnection = new FahConnection_1.default(this.log, this.config.foldingathome__host, this.config.foldingathome__port, this.config.foldingathome__password, this.config.foldingathome__reconnect_delay);
@@ -55,16 +52,17 @@ class Foldingathome extends utils.Adapter {
             for (const connection of this.fahConnections) {
                 this.log.debug(`[main] creating connection ${connection.connectionId}`);
                 this.createConnectionStates(connection);
-                connection.on("optionsUpdate", this.writeOptionStates);
-                connection.on("queueUpdate", this.writeQueueStates);
-                connection.on("slotsUpdate", this.writeSlotStates);
+                // connection.on("optionsUpdate", this.writeOptionStates);
+                // connection.on("queueUpdate", this.writeQueueStates);
+                // connection.on("slotsUpdate", this.writeSlotStates);
+                connection.on("data", this.onConnectionDataUpdate);
                 connection.on("connectionUpdate", this.writeConnectionState);
-                connection.on("aliveUpdate", this.writeAliveState);
+                // connection.on("aliveUpdate", this.writeAliveState);
                 connection.connect();
             }
         }
         catch (error) {
-            this.log.error(error);
+            this.log.error(`[main] Error while creating connection: ${error}`);
         }
     }
     /**
@@ -73,10 +71,12 @@ class Foldingathome extends utils.Adapter {
     onUnload(callback) {
         try {
             Promise.all(this.fahConnections.map((fc) => fc.closeConnection())).catch(this.log.error);
-            this.log.info("cleaned everything up...");
-            callback();
+            this.log.info("[main] cleaned everything up...");
         }
         catch (e) {
+            this.log.error(`[main] Error on unload: ${e}`);
+        }
+        finally {
             callback();
         }
     }
@@ -100,6 +100,18 @@ class Foldingathome extends utils.Adapter {
             native: {},
         });
         this.setState(`${connection.connectionId}.connection`, "disconnected", true);
+        this.setObjectNotExists(`${connection.connectionId}.json`, {
+            type: "state",
+            common: {
+                name: "raw fah data as json",
+                type: "string",
+                role: "json",
+                read: true,
+                write: false,
+            },
+            native: {},
+        });
+        this.setState(`${connection.connectionId}.json`, JSON.stringify(connection.fah), true);
         this.setObjectNotExists(`${connection.connectionId}.alive`, {
             type: "state",
             common: {
@@ -119,13 +131,6 @@ class Foldingathome extends utils.Adapter {
             },
             native: {},
         });
-        this.setObjectNotExists(`${connection.connectionId}.queue`, {
-            type: "channel",
-            common: {
-                name: `queue`,
-            },
-            native: {},
-        });
         this.setObjectNotExists(`${connection.connectionId}.options`, {
             type: "channel",
             common: {
@@ -137,22 +142,28 @@ class Foldingathome extends utils.Adapter {
     writeConnectionState(connection, state) {
         this.setState(`${connection.connectionId}.connection`, state, true);
     }
-    writeAliveState(connection, alive) {
-        if (alive !== connection.fah.alive) {
-            this.setState(`${connection.connectionId}.alive`, alive, true);
+    onConnectionDataUpdate(connection, newData, oldData) {
+        this.writeOptionStates(connection, newData.options, oldData.options);
+        this.writeSlotStates(connection, newData, oldData);
+        this.writeAliveState(connection, newData.alive, oldData.alive);
+        this.setState(`${connection.connectionId}.json`, JSON.stringify(newData), true);
+    }
+    writeAliveState(connection, newAlive, oldAlive) {
+        if (newAlive !== oldAlive) {
+            this.setState(`${connection.connectionId}.alive`, { val: newAlive, expire: 30 }, true);
         }
+        // wait until new data has been applied to connection objects
         setImmediate(() => {
             // Check if all connections are alive
             let allAlive = true;
             this.fahConnections.forEach((fahc) => {
                 allAlive = allAlive && fahc.fah.alive;
             });
-            this.setState("info.connection", allAlive, true);
+            this.setState("info.connection", { val: allAlive, expire: 30 }, true);
         });
     }
-    writeOptionStates(connection, options) {
+    writeOptionStates(connection, newOptions, oldOptions = null) {
         const optionsCh = `${connection.connectionId}.options`;
-        const oldOptions = connection.fah.options;
         this.setObjectNotExists(`${optionsCh}.user`, {
             type: "state",
             common: {
@@ -164,9 +175,8 @@ class Foldingathome extends utils.Adapter {
             },
             native: {},
         });
-        if (options.user &&
-            (oldOptions === undefined || oldOptions.user === undefined || oldOptions.user !== options.user)) {
-            this.setState(`${optionsCh}.user`, options.user, true);
+        if (newOptions.user !== (oldOptions === null || oldOptions === void 0 ? void 0 : oldOptions.user)) {
+            this.setState(`${optionsCh}.user`, newOptions.user, true);
         }
         this.setObjectNotExists(`${optionsCh}.team`, {
             type: "state",
@@ -179,9 +189,8 @@ class Foldingathome extends utils.Adapter {
             },
             native: {},
         });
-        if (options.team &&
-            (oldOptions === undefined || oldOptions.team === undefined || oldOptions.team !== options.team)) {
-            this.setState(`${optionsCh}.team`, options.team, true);
+        if (newOptions.team !== (oldOptions === null || oldOptions === void 0 ? void 0 : oldOptions.team)) {
+            this.setState(`${optionsCh}.team`, newOptions.team, true);
         }
         this.setObjectNotExists(`${optionsCh}.cause`, {
             type: "state",
@@ -194,9 +203,8 @@ class Foldingathome extends utils.Adapter {
             },
             native: {},
         });
-        if (options.cause &&
-            (oldOptions === undefined || oldOptions.cause === undefined || oldOptions.cause !== options.cause)) {
-            this.setState(`${optionsCh}.cause`, options.cause, true);
+        if (newOptions.cause !== (oldOptions === null || oldOptions === void 0 ? void 0 : oldOptions.cause)) {
+            this.setState(`${optionsCh}.cause`, newOptions.cause, true);
         }
         this.setObjectNotExists(`${optionsCh}.power`, {
             type: "state",
@@ -209,529 +217,526 @@ class Foldingathome extends utils.Adapter {
             },
             native: {},
         });
-        if (options.power &&
-            (oldOptions === undefined || oldOptions.power === undefined || oldOptions.power !== options.power)) {
-            this.setState(`${optionsCh}.power`, options.power, true);
+        if (newOptions.power !== (oldOptions === null || oldOptions === void 0 ? void 0 : oldOptions.power)) {
+            this.setState(`${optionsCh}.power`, newOptions.power, true);
         }
     }
-    writeSlotStates(connection, slots) {
-        slots.forEach((slot, index) => {
-            const oldSlot = connection.fah.slots[index];
-            const slotCh = `${connection.connectionId}.slots.${slot.id}`;
-            this.setObjectNotExists(slotCh, {
-                type: "channel",
-                common: {
-                    name: `slot ${slot.id}`,
-                },
-                native: {},
-            });
-            this.setObjectNotExists(`${slotCh}.id`, {
-                type: "state",
-                common: {
-                    name: "slot id",
-                    type: "string",
-                    role: "state",
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-            if (slot.id && (oldSlot === undefined || oldSlot.id === undefined || oldSlot.id !== slot.id)) {
-                this.setState(`${slotCh}.id`, slot.id, true);
+    writeSlotStates(connection, newData, oldData = null) {
+        var _a;
+        // get new slots and corresponding old slots
+        // write new slots
+        // old new slots and corresponding new slots
+        // delete old slots without new slots
+        const slots = {};
+        newData.slots.forEach((slot, index) => {
+            slots[slot.id] = { isNew: true, newIndex: index, isOld: false, oldIndex: -1 };
+        });
+        oldData === null || oldData === void 0 ? void 0 : oldData.slots.forEach((slot, index) => {
+            if (slots[slot.id] === undefined) {
+                slots[slot.id] = { isNew: false, newIndex: -1, isOld: true, oldIndex: index };
             }
-            this.setObjectNotExists(`${slotCh}.status`, {
-                type: "state",
-                common: {
-                    name: "slot status",
-                    type: "string",
-                    role: "state",
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-            if (slot.status &&
-                (oldSlot === undefined || oldSlot.status === undefined || oldSlot.status !== slot.status)) {
-                this.setState(`${slotCh}.status`, slot.status, true);
-            }
-            this.setState(`${slotCh}.status`, slot.status, true);
-            this.setObjectNotExists(`${slotCh}.description`, {
-                type: "state",
-                common: {
-                    name: "slot status",
-                    type: "string",
-                    role: "state",
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-            if (slot.description &&
-                (oldSlot === undefined || oldSlot.description === undefined || oldSlot.description !== slot.description)) {
-                this.setState(`${slotCh}.description`, slot.description, true);
-            }
-            this.setObjectNotExists(`${slotCh}.options`, {
-                type: "channel",
-                common: {
-                    name: "slot options",
-                    type: "string",
-                    role: "state",
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-            this.setObjectNotExists(`${slotCh}.options.paused`, {
-                type: "state",
-                common: {
-                    name: "slot paused",
-                    type: "bool",
-                    role: "indicator",
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-            if (slot.options &&
-                slot.options.paused &&
-                (oldSlot === undefined ||
-                    oldSlot.options === undefined ||
-                    oldSlot.options.paused === undefined ||
-                    oldSlot.options.paused !== slot.options.paused)) {
-                this.setState(`${slotCh}.options.paused`, slot.options.paused, true);
-            }
-            this.setObjectNotExists(`${slotCh}.options.idle`, {
-                type: "state",
-                common: {
-                    name: "slot idle",
-                    type: "bool",
-                    role: "indicator",
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-            if (slot.options &&
-                slot.options.idle &&
-                (oldSlot === undefined ||
-                    oldSlot.options === undefined ||
-                    oldSlot.options.idle === undefined ||
-                    oldSlot.options.idle !== slot.options.idle)) {
-                this.setState(`${slotCh}.options.idle`, slot.options.idle, true);
+            else {
+                slots[slot.id].isOld = true;
+                slots[slot.id].oldIndex = index;
             }
         });
+        for (const id in slots) {
+            const slot = slots[id];
+            const slotCh = `${connection.connectionId}.slots.${id}`;
+            if (slot.isOld && !slot.isNew) {
+                this.deleteChannelAsync(slotCh);
+            }
+            else {
+                const newSlot = newData.slots[slot.newIndex];
+                const oldSlot = slot.isOld ? oldData.slots[slot.oldIndex] : null;
+                this.setObjectNotExists(slotCh, {
+                    type: "channel",
+                    common: {
+                        name: `slot ${id}`,
+                    },
+                    native: {},
+                });
+                this.setObjectNotExists(`${slotCh}.id`, {
+                    type: "state",
+                    common: {
+                        name: "slot id",
+                        type: "string",
+                        role: "state",
+                        read: true,
+                        write: false,
+                    },
+                    native: {},
+                });
+                if (newSlot.id !== (oldSlot === null || oldSlot === void 0 ? void 0 : oldSlot.id)) {
+                    this.setState(`${slotCh}.id`, newSlot.id, true);
+                }
+                this.setObjectNotExists(`${slotCh}.status`, {
+                    type: "state",
+                    common: {
+                        name: "slot status",
+                        type: "string",
+                        role: "state",
+                        read: true,
+                        write: false,
+                    },
+                    native: {},
+                });
+                if (newSlot.status !== (oldSlot === null || oldSlot === void 0 ? void 0 : oldSlot.status)) {
+                    this.setState(`${slotCh}.status`, newSlot.status, true);
+                }
+                this.setObjectNotExists(`${slotCh}.description`, {
+                    type: "state",
+                    common: {
+                        name: "slot status",
+                        type: "string",
+                        role: "state",
+                        read: true,
+                        write: false,
+                    },
+                    native: {},
+                });
+                if (newSlot.description !== (oldSlot === null || oldSlot === void 0 ? void 0 : oldSlot.description)) {
+                    this.setState(`${slotCh}.description`, newSlot.description, true);
+                }
+                this.setObjectNotExists(`${slotCh}.options`, {
+                    type: "state",
+                    common: {
+                        name: "slot options",
+                        type: "string",
+                        role: "json",
+                        read: true,
+                        write: false,
+                    },
+                    native: {},
+                });
+                if (newSlot.options !== (oldSlot === null || oldSlot === void 0 ? void 0 : oldSlot.options)) {
+                    this.setState(`${slotCh}.options`, JSON.stringify(newSlot.options), true);
+                }
+                const newWU = (_a = newData.queue.find((wu) => wu.slot == id)) !== null && _a !== void 0 ? _a : Foldingathome.emptyWorkUnit;
+                const oldWU = slot.isOld ? oldData === null || oldData === void 0 ? void 0 : oldData.queue.find((wu) => wu.slot == id) : null;
+                this.setObjectNotExists(`${slotCh}.wu`, {
+                    type: "channel",
+                    common: {
+                        name: `work unit`,
+                    },
+                    native: {},
+                });
+                this.writeWorkUnitStates(`${slotCh}.wu`, newWU, oldWU);
+            }
+        }
     }
-    writeQueueStates(connection, queue) {
-        queue.forEach((unit, index) => {
-            const oldUnit = connection.fah.queue[index];
-            const queueCh = `${connection.connectionId}.queue.${unit.id}`;
-            this.setObjectNotExists(queueCh, {
-                type: "channel",
-                common: {
-                    name: `unit ${unit.id}`,
-                },
-                native: {},
-            });
-            this.setObjectNotExists(`${queueCh}.id`, {
-                type: "state",
-                common: {
-                    name: "unit id",
-                    type: "string",
-                    role: "state",
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-            if (unit.id && (oldUnit === undefined || oldUnit.id === undefined || oldUnit.id !== unit.id)) {
-                this.setState(`${queueCh}.id`, unit.id, true);
-            }
-            this.setObjectNotExists(`${queueCh}.state`, {
-                type: "state",
-                common: {
-                    name: "state",
-                    type: "string",
-                    role: "state",
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-            if (unit.state && (oldUnit === undefined || oldUnit.state === undefined || oldUnit.state !== unit.state)) {
-                this.setState(`${queueCh}.state`, unit.state, true);
-            }
-            this.setObjectNotExists(`${queueCh}.error`, {
-                type: "state",
-                common: {
-                    name: "error",
-                    type: "string",
-                    role: "state",
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-            if (unit.error && (oldUnit === undefined || oldUnit.error === undefined || oldUnit.error !== unit.error)) {
-                this.setState(`${queueCh}.error`, unit.error, true);
-            }
-            this.setObjectNotExists(`${queueCh}.project`, {
-                type: "state",
-                common: {
-                    name: "project",
-                    type: "string",
-                    role: "state",
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-            if (unit.project &&
-                (oldUnit === undefined || oldUnit.project === undefined || oldUnit.project !== unit.project)) {
-                this.setState(`${queueCh}.project`, unit.project, true);
-            }
-            this.setObjectNotExists(`${queueCh}.run`, {
-                type: "state",
-                common: {
-                    name: "run",
-                    type: "string",
-                    role: "state",
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-            if (unit.run && (oldUnit === undefined || oldUnit.run === undefined || oldUnit.run !== unit.run)) {
-                this.setState(`${queueCh}.run`, unit.run, true);
-            }
-            this.setObjectNotExists(`${queueCh}.clone`, {
-                type: "state",
-                common: {
-                    name: "clone",
-                    type: "string",
-                    role: "state",
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-            if (unit.clone && (oldUnit === undefined || oldUnit.clone === undefined || oldUnit.clone !== unit.clone)) {
-                this.setState(`${queueCh}.clone`, unit.clone, true);
-            }
-            this.setObjectNotExists(`${queueCh}.gen`, {
-                type: "state",
-                common: {
-                    name: "gen",
-                    type: "string",
-                    role: "state",
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-            if (unit.gen && (oldUnit === undefined || oldUnit.gen === undefined || oldUnit.gen !== unit.gen)) {
-                this.setState(`${queueCh}.gen`, unit.gen, true);
-            }
-            this.setObjectNotExists(`${queueCh}.core`, {
-                type: "state",
-                common: {
-                    name: "core",
-                    type: "string",
-                    role: "state",
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-            if (unit.core && (oldUnit === undefined || oldUnit.core === undefined || oldUnit.core !== unit.core)) {
-                this.setState(`${queueCh}.core`, unit.core, true);
-            }
-            this.setObjectNotExists(`${queueCh}.unit`, {
-                type: "state",
-                common: {
-                    name: "unit",
-                    type: "string",
-                    role: "state",
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-            if (unit.unit && (oldUnit === undefined || oldUnit.unit === undefined || oldUnit.unit !== unit.unit)) {
-                this.setState(`${queueCh}.unit`, unit.unit, true);
-            }
-            // TODO: convert to number
-            this.setObjectNotExists(`${queueCh}.percentdone`, {
-                type: "state",
-                common: {
-                    name: "percent done",
-                    type: "string",
-                    role: "state",
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-            if (unit.percentdone &&
-                (oldUnit === undefined || oldUnit.percentdone === undefined || oldUnit.percentdone !== unit.percentdone)) {
-                this.setState(`${queueCh}.percentdone`, unit.percentdone, true);
-            }
-            // TODO: convert to time
-            this.setObjectNotExists(`${queueCh}.eta`, {
-                type: "state",
-                common: {
-                    name: "eta",
-                    type: "string",
-                    role: "state",
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-            if (unit.eta && (oldUnit === undefined || oldUnit.eta === undefined || oldUnit.eta !== unit.eta)) {
-                this.setState(`${queueCh}.eta`, unit.eta, true);
-            }
-            this.setObjectNotExists(`${queueCh}.ppd`, {
-                type: "state",
-                common: {
-                    name: "points per day",
-                    type: "string",
-                    role: "state",
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-            if (unit.ppd && (oldUnit === undefined || oldUnit.ppd === undefined || oldUnit.ppd !== unit.ppd)) {
-                this.setState(`${queueCh}.ppd`, unit.ppd, true);
-            }
-            this.setObjectNotExists(`${queueCh}.creditestimate`, {
-                type: "state",
-                common: {
-                    name: "credit estimate",
-                    type: "string",
-                    role: "state",
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-            if (unit.creditestimate &&
-                (oldUnit === undefined ||
-                    oldUnit.creditestimate === undefined ||
-                    oldUnit.creditestimate !== unit.creditestimate)) {
-                this.setState(`${queueCh}.creditestimate`, unit.creditestimate, true);
-            }
-            this.setObjectNotExists(`${queueCh}.waitingon`, {
-                type: "state",
-                common: {
-                    name: "waiting on",
-                    type: "string",
-                    role: "state",
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-            if (unit.waitingon &&
-                (oldUnit === undefined || oldUnit.waitingon === undefined || oldUnit.waitingon !== unit.waitingon)) {
-                this.setState(`${queueCh}.waitingon`, unit.waitingon, true);
-            }
-            this.setObjectNotExists(`${queueCh}.nextattempt`, {
-                type: "state",
-                common: {
-                    name: "next attempt",
-                    type: "string",
-                    role: "state",
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-            if (unit.nextattempt &&
-                (oldUnit === undefined || oldUnit.nextattempt === undefined || oldUnit.nextattempt !== unit.nextattempt)) {
-                this.setState(`${queueCh}.nextattempt`, unit.nextattempt, true);
-            }
-            this.setObjectNotExists(`${queueCh}.timeremaining`, {
-                type: "state",
-                common: {
-                    name: "time remaining",
-                    type: "string",
-                    role: "state",
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-            if (unit.timeremaining &&
-                (oldUnit === undefined ||
-                    oldUnit.timeremaining === undefined ||
-                    oldUnit.timeremaining !== unit.timeremaining)) {
-                this.setState(`${queueCh}.timeremaining`, unit.timeremaining, true);
-            }
-            this.setObjectNotExists(`${queueCh}.totalframes`, {
-                type: "state",
-                common: {
-                    name: "total frames",
-                    type: "string",
-                    role: "state",
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-            if (unit.totalframes &&
-                (oldUnit === undefined || oldUnit.totalframes === undefined || oldUnit.totalframes !== unit.totalframes)) {
-                this.setState(`${queueCh}.totalframes`, unit.totalframes, true);
-            }
-            this.setObjectNotExists(`${queueCh}.framesdone`, {
-                type: "state",
-                common: {
-                    name: "frames done",
-                    type: "string",
-                    role: "state",
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-            if (unit.framesdone &&
-                (oldUnit === undefined || oldUnit.framesdone === undefined || oldUnit.framesdone !== unit.framesdone)) {
-                this.setState(`${queueCh}.framesdone`, unit.framesdone, true);
-            }
-            this.setObjectNotExists(`${queueCh}.assigned`, {
-                type: "state",
-                common: {
-                    name: "assigned",
-                    type: "string",
-                    role: "state",
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-            if (unit.assigned &&
-                (oldUnit === undefined || oldUnit.assigned === undefined || oldUnit.assigned !== unit.assigned)) {
-                this.setState(`${queueCh}.assigned`, unit.assigned, true);
-            }
-            this.setObjectNotExists(`${queueCh}.timeout`, {
-                type: "state",
-                common: {
-                    name: "timeout",
-                    type: "string",
-                    role: "state",
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-            if (unit.timeout &&
-                (oldUnit === undefined || oldUnit.timeout === undefined || oldUnit.timeout !== unit.timeout)) {
-                this.setState(`${queueCh}.timeout`, unit.timeout, true);
-            }
-            this.setObjectNotExists(`${queueCh}.deadline`, {
-                type: "state",
-                common: {
-                    name: "deadline",
-                    type: "string",
-                    role: "state",
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-            if (unit.deadline &&
-                (oldUnit === undefined || oldUnit.deadline === undefined || oldUnit.deadline !== unit.deadline)) {
-                this.setState(`${queueCh}.deadline`, unit.deadline, true);
-            }
-            this.setObjectNotExists(`${queueCh}.ws`, {
-                type: "state",
-                common: {
-                    name: "work server",
-                    type: "string",
-                    role: "state",
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-            if (unit.ws && (oldUnit === undefined || oldUnit.ws === undefined || oldUnit.ws !== unit.ws)) {
-                this.setState(`${queueCh}.ws`, unit.ws, true);
-            }
-            this.setObjectNotExists(`${queueCh}.cs`, {
-                type: "state",
-                common: {
-                    name: "collection server",
-                    type: "string",
-                    role: "state",
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-            if (unit.cs && (oldUnit === undefined || oldUnit.cs === undefined || oldUnit.cs !== unit.cs)) {
-                this.setState(`${queueCh}.cs`, unit.cs, true);
-            }
-            this.setObjectNotExists(`${queueCh}.attempts`, {
-                type: "state",
-                common: {
-                    name: "attempts",
-                    type: "string",
-                    role: "state",
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-            if (unit.attempts &&
-                (oldUnit === undefined || oldUnit.attempts === undefined || oldUnit.attempts !== unit.attempts)) {
-                this.setState(`${queueCh}.attempts`, unit.attempts, true);
-            }
-            this.setObjectNotExists(`${queueCh}.slot`, {
-                type: "state",
-                common: {
-                    name: "slot",
-                    type: "string",
-                    role: "state",
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-            if (unit.slot && (oldUnit === undefined || oldUnit.slot === undefined || oldUnit.slot !== unit.slot)) {
-                this.setState(`${queueCh}.slot`, unit.slot, true);
-            }
-            this.setObjectNotExists(`${queueCh}.tpf`, {
-                type: "state",
-                common: {
-                    name: "time per frame",
-                    type: "string",
-                    role: "state",
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-            if (unit.tpf && (oldUnit === undefined || oldUnit.tpf === undefined || oldUnit.tpf !== unit.tpf)) {
-                this.setState(`${queueCh}.tpf`, unit.tpf, true);
-            }
-            this.setObjectNotExists(`${queueCh}.basecredit`, {
-                type: "state",
-                common: {
-                    name: "base credit",
-                    type: "string",
-                    role: "state",
-                    read: true,
-                    write: false,
-                },
-                native: {},
-            });
-            if (unit.basecredit &&
-                (oldUnit === undefined || oldUnit.basecredit === undefined || oldUnit.basecredit !== unit.basecredit)) {
-                this.setState(`${queueCh}.basecredit`, unit.basecredit, true);
-            }
+    writeWorkUnitStates(wuCh, newWU, oldWU = null) {
+        this.setObjectNotExists(`${wuCh}.id`, {
+            type: "state",
+            common: {
+                name: "unit id",
+                type: "string",
+                role: "state",
+                read: true,
+                write: false,
+            },
+            native: {},
         });
+        if (newWU.id !== (oldWU === null || oldWU === void 0 ? void 0 : oldWU.id)) {
+            this.setState(`${wuCh}.id`, newWU.id, true);
+        }
+        this.setObjectNotExists(`${wuCh}.state`, {
+            type: "state",
+            common: {
+                name: "state",
+                type: "string",
+                role: "state",
+                read: true,
+                write: false,
+            },
+            native: {},
+        });
+        if (newWU.state !== (oldWU === null || oldWU === void 0 ? void 0 : oldWU.state)) {
+            this.setState(`${wuCh}.state`, newWU.state, true);
+        }
+        this.setObjectNotExists(`${wuCh}.error`, {
+            type: "state",
+            common: {
+                name: "error",
+                type: "string",
+                role: "state",
+                read: true,
+                write: false,
+            },
+            native: {},
+        });
+        if (newWU.error !== (oldWU === null || oldWU === void 0 ? void 0 : oldWU.error)) {
+            this.setState(`${wuCh}.error`, newWU.error, true);
+        }
+        this.setObjectNotExists(`${wuCh}.project`, {
+            type: "state",
+            common: {
+                name: "project",
+                type: "string",
+                role: "state",
+                read: true,
+                write: false,
+            },
+            native: {},
+        });
+        if (newWU.project !== (oldWU === null || oldWU === void 0 ? void 0 : oldWU.project)) {
+            this.setState(`${wuCh}.project`, newWU.project, true);
+        }
+        this.setObjectNotExists(`${wuCh}.run`, {
+            type: "state",
+            common: {
+                name: "run",
+                type: "string",
+                role: "state",
+                read: true,
+                write: false,
+            },
+            native: {},
+        });
+        if (newWU.run !== (oldWU === null || oldWU === void 0 ? void 0 : oldWU.run)) {
+            this.setState(`${wuCh}.run`, newWU.run, true);
+        }
+        this.setObjectNotExists(`${wuCh}.clone`, {
+            type: "state",
+            common: {
+                name: "clone",
+                type: "string",
+                role: "state",
+                read: true,
+                write: false,
+            },
+            native: {},
+        });
+        if (newWU.clone !== (oldWU === null || oldWU === void 0 ? void 0 : oldWU.clone)) {
+            this.setState(`${wuCh}.clone`, newWU.clone, true);
+        }
+        this.setObjectNotExists(`${wuCh}.gen`, {
+            type: "state",
+            common: {
+                name: "gen",
+                type: "string",
+                role: "state",
+                read: true,
+                write: false,
+            },
+            native: {},
+        });
+        if (newWU.gen !== (oldWU === null || oldWU === void 0 ? void 0 : oldWU.gen)) {
+            this.setState(`${wuCh}.gen`, newWU.gen, true);
+        }
+        this.setObjectNotExists(`${wuCh}.core`, {
+            type: "state",
+            common: {
+                name: "core",
+                type: "string",
+                role: "state",
+                read: true,
+                write: false,
+            },
+            native: {},
+        });
+        if (newWU.core !== (oldWU === null || oldWU === void 0 ? void 0 : oldWU.core)) {
+            this.setState(`${wuCh}.core`, newWU.core, true);
+        }
+        this.setObjectNotExists(`${wuCh}.unit`, {
+            type: "state",
+            common: {
+                name: "unit",
+                type: "string",
+                role: "state",
+                read: true,
+                write: false,
+            },
+            native: {},
+        });
+        if (newWU.unit !== (oldWU === null || oldWU === void 0 ? void 0 : oldWU.unit)) {
+            this.setState(`${wuCh}.unit`, newWU.unit, true);
+        }
+        // TODO: convert to number
+        this.setObjectNotExists(`${wuCh}.percentdone`, {
+            type: "state",
+            common: {
+                name: "percent done",
+                type: "string",
+                role: "state",
+                read: true,
+                write: false,
+            },
+            native: {},
+        });
+        if (newWU.percentdone !== (oldWU === null || oldWU === void 0 ? void 0 : oldWU.percentdone)) {
+            this.setState(`${wuCh}.percentdone`, newWU.percentdone, true);
+        }
+        // TODO: convert to time
+        this.setObjectNotExists(`${wuCh}.eta`, {
+            type: "state",
+            common: {
+                name: "eta",
+                type: "string",
+                role: "state",
+                read: true,
+                write: false,
+            },
+            native: {},
+        });
+        if (newWU.eta !== (oldWU === null || oldWU === void 0 ? void 0 : oldWU.eta)) {
+            this.setState(`${wuCh}.eta`, newWU.eta, true);
+        }
+        this.setObjectNotExists(`${wuCh}.ppd`, {
+            type: "state",
+            common: {
+                name: "points per day",
+                type: "string",
+                role: "state",
+                read: true,
+                write: false,
+            },
+            native: {},
+        });
+        if (newWU.ppd !== (oldWU === null || oldWU === void 0 ? void 0 : oldWU.ppd)) {
+            this.setState(`${wuCh}.ppd`, newWU.ppd, true);
+        }
+        this.setObjectNotExists(`${wuCh}.creditestimate`, {
+            type: "state",
+            common: {
+                name: "credit estimate",
+                type: "string",
+                role: "state",
+                read: true,
+                write: false,
+            },
+            native: {},
+        });
+        if (newWU.creditestimate !== (oldWU === null || oldWU === void 0 ? void 0 : oldWU.creditestimate)) {
+            this.setState(`${wuCh}.creditestimate`, newWU.creditestimate, true);
+        }
+        this.setObjectNotExists(`${wuCh}.waitingon`, {
+            type: "state",
+            common: {
+                name: "waiting on",
+                type: "string",
+                role: "state",
+                read: true,
+                write: false,
+            },
+            native: {},
+        });
+        if (newWU.waitingon !== (oldWU === null || oldWU === void 0 ? void 0 : oldWU.waitingon)) {
+            this.setState(`${wuCh}.waitingon`, newWU.waitingon, true);
+        }
+        this.setObjectNotExists(`${wuCh}.nextattempt`, {
+            type: "state",
+            common: {
+                name: "next attempt",
+                type: "string",
+                role: "state",
+                read: true,
+                write: false,
+            },
+            native: {},
+        });
+        if (newWU.nextattempt !== (oldWU === null || oldWU === void 0 ? void 0 : oldWU.nextattempt)) {
+            this.setState(`${wuCh}.nextattempt`, newWU.nextattempt, true);
+        }
+        this.setObjectNotExists(`${wuCh}.timeremaining`, {
+            type: "state",
+            common: {
+                name: "time remaining",
+                type: "string",
+                role: "state",
+                read: true,
+                write: false,
+            },
+            native: {},
+        });
+        if (newWU.timeremaining !== (oldWU === null || oldWU === void 0 ? void 0 : oldWU.timeremaining)) {
+            this.setState(`${wuCh}.timeremaining`, newWU.timeremaining, true);
+        }
+        this.setObjectNotExists(`${wuCh}.totalframes`, {
+            type: "state",
+            common: {
+                name: "total frames",
+                type: "string",
+                role: "state",
+                read: true,
+                write: false,
+            },
+            native: {},
+        });
+        if (newWU.totalframes !== (oldWU === null || oldWU === void 0 ? void 0 : oldWU.totalframes)) {
+            this.setState(`${wuCh}.totalframes`, newWU.totalframes, true);
+        }
+        this.setObjectNotExists(`${wuCh}.framesdone`, {
+            type: "state",
+            common: {
+                name: "frames done",
+                type: "string",
+                role: "state",
+                read: true,
+                write: false,
+            },
+            native: {},
+        });
+        if (newWU.framesdone !== (oldWU === null || oldWU === void 0 ? void 0 : oldWU.framesdone)) {
+            this.setState(`${wuCh}.framesdone`, newWU.framesdone, true);
+        }
+        this.setObjectNotExists(`${wuCh}.assigned`, {
+            type: "state",
+            common: {
+                name: "assigned",
+                type: "string",
+                role: "state",
+                read: true,
+                write: false,
+            },
+            native: {},
+        });
+        if (newWU.assigned !== (oldWU === null || oldWU === void 0 ? void 0 : oldWU.assigned)) {
+            this.setState(`${wuCh}.assigned`, newWU.assigned, true);
+        }
+        this.setObjectNotExists(`${wuCh}.timeout`, {
+            type: "state",
+            common: {
+                name: "timeout",
+                type: "string",
+                role: "state",
+                read: true,
+                write: false,
+            },
+            native: {},
+        });
+        if (newWU.timeout !== (oldWU === null || oldWU === void 0 ? void 0 : oldWU.timeout)) {
+            this.setState(`${wuCh}.timeout`, newWU.timeout, true);
+        }
+        this.setObjectNotExists(`${wuCh}.deadline`, {
+            type: "state",
+            common: {
+                name: "deadline",
+                type: "string",
+                role: "state",
+                read: true,
+                write: false,
+            },
+            native: {},
+        });
+        if (newWU.deadline !== (oldWU === null || oldWU === void 0 ? void 0 : oldWU.deadline)) {
+            this.setState(`${wuCh}.deadline`, newWU.deadline, true);
+        }
+        this.setObjectNotExists(`${wuCh}.ws`, {
+            type: "state",
+            common: {
+                name: "work server",
+                type: "string",
+                role: "state",
+                read: true,
+                write: false,
+            },
+            native: {},
+        });
+        if (newWU.ws !== (oldWU === null || oldWU === void 0 ? void 0 : oldWU.ws)) {
+            this.setState(`${wuCh}.ws`, newWU.ws, true);
+        }
+        this.setObjectNotExists(`${wuCh}.cs`, {
+            type: "state",
+            common: {
+                name: "collection server",
+                type: "string",
+                role: "state",
+                read: true,
+                write: false,
+            },
+            native: {},
+        });
+        if (newWU.cs !== (oldWU === null || oldWU === void 0 ? void 0 : oldWU.cs)) {
+            this.setState(`${wuCh}.cs`, newWU.cs, true);
+        }
+        this.setObjectNotExists(`${wuCh}.attempts`, {
+            type: "state",
+            common: {
+                name: "attempts",
+                type: "string",
+                role: "state",
+                read: true,
+                write: false,
+            },
+            native: {},
+        });
+        if (newWU.attempts !== (oldWU === null || oldWU === void 0 ? void 0 : oldWU.attempts)) {
+            this.setState(`${wuCh}.attempts`, newWU.attempts, true);
+        }
+        this.setObjectNotExists(`${wuCh}.slot`, {
+            type: "state",
+            common: {
+                name: "slot",
+                type: "string",
+                role: "state",
+                read: true,
+                write: false,
+            },
+            native: {},
+        });
+        if (newWU.slot !== (oldWU === null || oldWU === void 0 ? void 0 : oldWU.slot)) {
+            this.setState(`${wuCh}.slot`, newWU.slot, true);
+        }
+        this.setObjectNotExists(`${wuCh}.tpf`, {
+            type: "state",
+            common: {
+                name: "time per frame",
+                type: "string",
+                role: "state",
+                read: true,
+                write: false,
+            },
+            native: {},
+        });
+        if (newWU.tpf !== (oldWU === null || oldWU === void 0 ? void 0 : oldWU.tpf)) {
+            this.setState(`${wuCh}.tpf`, newWU.tpf, true);
+        }
+        this.setObjectNotExists(`${wuCh}.basecredit`, {
+            type: "state",
+            common: {
+                name: "base credit",
+                type: "string",
+                role: "state",
+                read: true,
+                write: false,
+            },
+            native: {},
+        });
+        if (newWU.basecredit !== (oldWU === null || oldWU === void 0 ? void 0 : oldWU.basecredit)) {
+            this.setState(`${wuCh}.basecredit`, newWU.basecredit, true);
+        }
     }
 }
+Foldingathome.emptyWorkUnit = {
+    id: "",
+    state: "NO_WU",
+    error: "NO_ERROR",
+    project: 0,
+    run: 0,
+    clone: -1,
+    gen: -1,
+    core: "unknown",
+    unit: "0x00000000000000000000000000000000",
+    percentdone: "0.00%",
+    eta: "0.00 secs",
+    ppd: "0",
+    creditestimate: "0",
+    waitingon: "Unknown",
+    nextattempt: "0.00 secs",
+    timeremaining: "0.00 secs",
+    totalframes: 0,
+    framesdone: 0,
+    assigned: "<invalid>",
+    timeout: "<invalid>",
+    deadline: "<invalid>",
+    ws: "0.0.0.0",
+    cs: "0.0.0.0",
+    attempts: -1,
+    slot: "<invalid>",
+    tpf: "0.00 secs",
+    basecredit: "0",
+};
 if (module.parent) {
     // Export the constructor in compact mode
     module.exports = (options) => new Foldingathome(options);
