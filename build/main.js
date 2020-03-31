@@ -145,13 +145,12 @@ class Foldingathome extends utils.Adapter {
     onConnectionDataUpdate(connection, newData, oldData) {
         this.writeOptionStates(connection, newData.options, oldData.options);
         this.writeSlotStates(connection, newData, oldData);
-        this.writeAliveState(connection, newData.alive, oldData.alive);
+        this.writeAliveState(connection, newData.alive);
         this.setState(`${connection.connectionId}.json`, JSON.stringify(newData), true);
     }
-    writeAliveState(connection, newAlive, oldAlive) {
-        if (newAlive !== oldAlive) {
-            this.setState(`${connection.connectionId}.alive`, { val: newAlive, expire: 30 }, true);
-        }
+    writeAliveState(connection, newAlive) {
+        // set alive state to expire after 30 seconds
+        this.setState(`${connection.connectionId}.alive`, { val: newAlive, expire: 30 }, true);
         // wait until new data has been applied to connection objects
         setImmediate(() => {
             // Check if all connections are alive
@@ -159,6 +158,7 @@ class Foldingathome extends utils.Adapter {
             this.fahConnections.forEach((fahc) => {
                 allAlive = allAlive && fahc.fah.alive;
             });
+            // set adapter connection state to true if all connections are alive
             this.setState("info.connection", { val: allAlive, expire: 30 }, true);
         });
     }
