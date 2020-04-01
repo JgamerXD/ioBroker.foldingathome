@@ -7,7 +7,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const events_1 = require("events");
 const telnet_client_1 = __importDefault(require("telnet-client"));
 class FahConnection extends events_1.EventEmitter {
-    constructor(log, host, port, password = "", reconnectDelay = 300000) {
+    constructor(log, host, port, password = "", reconnectDelay = 300000, alias = null) {
         super();
         // Bind this to function
         this.onData = this.onData.bind(this);
@@ -23,7 +23,7 @@ class FahConnection extends events_1.EventEmitter {
         };
         this.password = password;
         this.connectionAddress = `${host}:${port}`;
-        this.connectionId = this.connectionAddress.replace(/\W+/g, "_");
+        this.connectionId = alias && alias !== "" ? alias : this.connectionAddress.replace(/\W+/g, "_");
         this.log.info(`[${this.connectionId}] created connection to ${this.connectionAddress}`);
         this.isShuttingDown = false;
         this.isConnected = false;

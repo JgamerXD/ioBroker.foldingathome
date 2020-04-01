@@ -20,7 +20,14 @@ export default class FahConnection extends EventEmitter {
     shellPrompt: string;
     reconnectDelay: number;
 
-    constructor(log: ioBroker.Logger, host: string, port: number, password = "", reconnectDelay = 300000) {
+    constructor(
+        log: ioBroker.Logger,
+        host: string,
+        port: number,
+        password = "",
+        reconnectDelay = 300000,
+        alias: string | null = null,
+    ) {
         super();
 
         // Bind this to function
@@ -39,7 +46,7 @@ export default class FahConnection extends EventEmitter {
         this.password = password;
 
         this.connectionAddress = `${host}:${port}`;
-        this.connectionId = this.connectionAddress.replace(/\W+/g, "_");
+        this.connectionId = alias && alias !== "" ? alias : this.connectionAddress.replace(/\W+/g, "_");
         this.log.info(`[${this.connectionId}] created connection to ${this.connectionAddress}`);
 
         this.isShuttingDown = false;

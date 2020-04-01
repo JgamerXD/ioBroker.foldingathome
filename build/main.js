@@ -42,23 +42,22 @@ class Foldingathome extends utils.Adapter {
         // The adapters config (in the instance object everything under the attribute "native") is accessible via
         // this.config:
         this.log.info("[main] config reconnect_timeout: " + this.config.foldingathome__reconnect_delay);
-        this.log.info("[main] config host: " + this.config.foldingathome__host);
-        this.log.info("[main] config port: " + this.config.foldingathome__port);
-        this.log.info("[main] config password: " + this.config.foldingathome__password);
         try {
-            // TODO: multiple connections
-            const fahConnection = new FahConnection_1.default(this.log, this.config.foldingathome__host, this.config.foldingathome__port, this.config.foldingathome__password, this.config.foldingathome__reconnect_delay);
-            this.fahConnections.push(fahConnection);
-            for (const connection of this.fahConnections) {
-                this.log.debug(`[main] creating connection ${connection.connectionId}`);
-                this.createConnectionStates(connection);
+            for (const connection of this.config.foldingathome__connections) {
+                this.log.info("[main] config host: " + connection.host);
+                this.log.info("[main] config port: " + connection.port);
+                this.log.info("[main] config password: " + connection.password);
+                const fahConnection = new FahConnection_1.default(this.log, connection.host, connection.port, connection.password, this.config.foldingathome__reconnect_delay, connection.alias);
+                this.log.debug(`[main] creating connection ${fahConnection.connectionId}`);
+                this.createConnectionStates(fahConnection);
                 // connection.on("optionsUpdate", this.writeOptionStates);
                 // connection.on("queueUpdate", this.writeQueueStates);
                 // connection.on("slotsUpdate", this.writeSlotStates);
-                connection.on("data", this.onConnectionDataUpdate);
-                connection.on("connectionUpdate", this.writeConnectionState);
+                fahConnection.on("data", this.onConnectionDataUpdate);
+                fahConnection.on("connectionUpdate", this.writeConnectionState);
                 // connection.on("aliveUpdate", this.writeAliveState);
-                connection.connect();
+                this.fahConnections.push(fahConnection);
+                fahConnection.connect();
             }
         }
         catch (error) {
