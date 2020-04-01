@@ -6,5 +6,5 @@ scp *.ts raspberrypi4:~/docker/smarthome/iobroker/node_modules/iobroker.foldinga
 scp -r .\admin\ raspberrypi4:~/docker/smarthome/iobroker/node_modules/iobroker.foldingathome/
 scp -r .\build\ raspberrypi4:~/docker/smarthome/iobroker/node_modules/iobroker.foldingathome/
 echo Upload done!
-ssh raspberrypi4 "docker exec smarthome_iob /bin/sh -c 'iobroker upload foldingathome; iobroker restart foldingathome'"
+ssh raspberrypi4 "docker exec smarthome_iob /bin/sh -c 'iobroker upload foldingathome; iobroker restart foldingathome.0'"
 echo Restart done!

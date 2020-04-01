@@ -56,8 +56,7 @@ class FahConnection extends events_1.EventEmitter {
                 clearTimeout(this.heartbeatTimeout);
                 this.heartbeatTimeout = undefined;
             }
-            this.emit("aliveUpdate", this, false);
-            this.fah.alive = false;
+            this.updateFahData({ alive: false });
             this.log.info(`[${this.connectionId}] closed`);
             this.emit("connectionUpdate", this, "disconnected");
             this.telnetClient = null;
@@ -83,13 +82,11 @@ class FahConnection extends events_1.EventEmitter {
                 this.log.info(`[${this.connectionId}] auth: ${res}`);
             }
             res = await this.telnetClient.exec("updates clear\n");
-            res = await this.telnetClient.exec("updates add 0 5 $heartbeat\n");
-            this.onData(res);
-            res = await this.telnetClient.exec("updates add 1 1 $(options user team cause power)\n");
-            this.onData(res);
-            res = await this.telnetClient.exec("updates add 2 5 $queue-info\n");
-            this.onData(res);
-            res = await this.telnetClient.exec("updates add 3 5 $slot-info\n");
+            res += await this.telnetClient.exec("updates add 0 5 $heartbeat\n");
+            res += await this.telnetClient.exec("updates add 1 1 $(options user team cause power)\n");
+            res += await this.telnetClient.exec("updates add 2 5 $queue-info\n");
+            res += await this.telnetClient.exec("updates add 3 5 $slot-info\n");
+            // this.log.info(`[${this.connectionId}] res:\n${res}`);
             this.onData(res);
             this.log.info(`[${this.connectionId}] connected`);
         }
@@ -112,8 +109,7 @@ class FahConnection extends events_1.EventEmitter {
             if (this.telnetClient !== null) {
                 this.telnetClient.on("close", () => {
                     this.emit("connectionUpdate", this, "disconnected");
-                    this.emit("aliveUpdate", this, false);
-                    this.fah.alive = false;
+                    this.updateFahData({ alive: false });
                     resolve();
                 });
                 this.telnetClient.end().catch((e) => {
@@ -157,38 +153,39 @@ class FahConnection extends events_1.EventEmitter {
         // this.log.debug(`[${this.connectionId}] data:\n${msg}`);
         let match = null;
         const regexp = /PyON \d+ \w+\n[\s\S]+?\n---/g;
+        const newData = {};
+        let hasNewData = false;
         while ((match = regexp.exec(msg)) !== null) {
-            const command = this.parsePyON(match[0]);
-            if (command.isPyON) {
-                if (command.error) {
-                    this.emit("dataError", this.connectionId, command);
+            const message = this.parsePyON(match[0]);
+            if (message.isPyON) {
+                if (message.error) {
+                    this.emit("dataError", this.connectionId, message);
                 }
                 else {
-                    this.log.debug(`[${this.connectionId}] command:\n${command.command}`);
-                    switch (command.command) {
+                    this.log.debug(`[${this.connectionId}] command:\n${message.command}`);
+                    switch (message.command) {
                         case "units":
-                            this.emit("queueUpdate", this, command.obj.units);
-                            this.fah.queue = command.obj.units;
+                            hasNewData = true;
+                            newData.queue = message.obj.units;
                             break;
                         case "slots":
-                            this.emit("slotsUpdate", this, command.obj.slots);
-                            this.fah.slots = command.obj.slots;
+                            hasNewData = true;
+                            newData.slots = message.obj.slots;
                             break;
                         case "options":
-                            this.emit("optionsUpdate", this, command.obj.options);
-                            this.fah.options = command.obj.options;
+                            hasNewData = true;
+                            newData.options = message.obj.options;
                             break;
                         case "heartbeat":
-                            this.emit("aliveUpdate", this, true);
-                            this.fah.alive = true;
+                            hasNewData = true;
+                            newData.alive = true;
                             if (this.heartbeatTimeout) {
                                 clearTimeout(this.heartbeatTimeout);
                                 this.heartbeatTimeout = undefined;
                             }
                             if (!this.isShuttingDown) {
                                 this.heartbeatTimeout = setTimeout(() => {
-                                    this.emit("aliveUpdate", this, false);
-                                    this.fah.alive = false;
+                                    this.updateFahData({ alive: false });
                                 }, 15000);
                             }
                         default:
@@ -197,10 +194,19 @@ class FahConnection extends events_1.EventEmitter {
                 }
             }
         }
+        if (hasNewData) {
+            this.updateFahData(newData);
+        }
         // const matches = msg.matchAll(/PyON \d+ (\w+)\n[\s\S]+?\n---/m);
         // for (const match of matches) {
         //     this.adapter.log.info(JSON.stringify(this.parsePyON(match)));
         // }
+    }
+    updateFahData(changed) {
+        const oldData = this.fah;
+        const newData = { ...this.fah, ...changed };
+        this.emit("data", this, newData, oldData);
+        this.fah = newData;
     }
 }
 exports.default = FahConnection;
