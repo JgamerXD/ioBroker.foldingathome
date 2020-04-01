@@ -142,10 +142,30 @@ class Foldingathome extends utils.Adapter {
         this.setState(`${connection.connectionId}.connection`, state, true);
     }
     onConnectionDataUpdate(connection, newData, oldData) {
+        var _a;
         this.writeOptionStates(connection, newData.options, oldData.options);
         this.writeSlotStates(connection, newData, oldData);
         this.writeAliveState(connection, newData.alive);
         this.setState(`${connection.connectionId}.json`, JSON.stringify(newData), true);
+        const table = [];
+        for (const fahc of this.fahConnections) {
+            if (fahc.fah.alive) {
+                for (const slot of fahc.fah.slots) {
+                    // find work unit run by slot
+                    const wu = (_a = fahc.fah.queue.find((wu) => wu.slot == slot.id)) !== null && _a !== void 0 ? _a : Foldingathome.emptyWorkUnit;
+                    table.push({
+                        Connection: fahc.connectionId,
+                        Id: slot.id,
+                        Slot: slot.description.split(" ")[0],
+                        Status: slot.status,
+                        Progress: wu.percentdone,
+                        ETA: wu.eta,
+                        Project: wu.project,
+                    });
+                }
+            }
+        }
+        this.setStateChangedAsync("table", JSON.stringify(table), true);
     }
     writeAliveState(connection, newAlive) {
         // set alive state to expire after 30 seconds

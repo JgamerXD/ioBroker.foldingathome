@@ -204,6 +204,33 @@ class Foldingathome extends utils.Adapter {
         this.writeSlotStates(connection, newData, oldData);
         this.writeAliveState(connection, newData.alive);
         this.setState(`${connection.connectionId}.json`, JSON.stringify(newData), true);
+        const table: Array<{
+            Connection: string;
+            Id: string;
+            Slot: string;
+            Status: string;
+            Progress: string;
+            ETA: string;
+            Project: number;
+        }> = [];
+        for (const fahc of this.fahConnections) {
+            if (fahc.fah.alive) {
+                for (const slot of fahc.fah.slots) {
+                    // find work unit run by slot
+                    const wu = fahc.fah.queue.find((wu) => wu.slot == slot.id) ?? Foldingathome.emptyWorkUnit;
+                    table.push({
+                        Connection: fahc.connectionId,
+                        Id: slot.id,
+                        Slot: slot.description.split(" ")[0],
+                        Status: slot.status,
+                        Progress: wu.percentdone,
+                        ETA: wu.eta,
+                        Project: wu.project,
+                    });
+                }
+            }
+        }
+        this.setStateChangedAsync("table", JSON.stringify(table), true);
     }
 
     writeAliveState(connection: FahConnection, newAlive: boolean): void {
