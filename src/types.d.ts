@@ -1,3 +1,9 @@
+type FahDataType = {
+    alive: boolean;
+    options: FahOptionsType;
+    slots: Array<FahSlotType>;
+    queue: Array<FahWorkUnitType>;
+};
 type FahOptionsType = {
     user: string;
     team: string; // number
@@ -15,7 +21,7 @@ type FahSlotType = {
     reason: string;
     idle: boolean;
 };
-type FahQueueEntryType = {
+type FahWorkUnitType = {
     id: string; // TODO: number
     state: string;
     error: string;
@@ -28,7 +34,7 @@ type FahQueueEntryType = {
     percentdone: string; // TODO: number
     eta: string; // TODO: duration/time
     ppd: string; // TODO: number
-    creditestimate: number;
+    creditestimate: string; // TODO: number
     waitingon: string;
     nextattempt: string; // TODO: duration/time
     timeremaining: string; // TODO: duration/time
