@@ -37,13 +37,14 @@ Configure hostname, port and password of the Folding@home instance. An empty pas
 -   [ ] remove old slots
     -   [x] while connected
     -   [ ] on reconnect
--   [ ] Multiple connections
+-   [x] Multiple connections
 -   [ ] ability to set options
 
 ## Changelog
 
 ### 0.0.2
 
+-   (JgamerXD) allow multiple connections
 -   (JgamerXD) improved state structure
 
 ### 0.0.1
