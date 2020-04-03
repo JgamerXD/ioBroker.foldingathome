@@ -52,6 +52,7 @@
   "main": "build/main.js",
   "scripts": {
     "prebuild": "rimraf ./build",
+    "prepublish": "npm run build",
     "build:ts": "tsc -p tsconfig.build.json",
     "build": "npm run build:ts",
     "watch:ts": "tsc -p tsconfig.build.json --watch",
