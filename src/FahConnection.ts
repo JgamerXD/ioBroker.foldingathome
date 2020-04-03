@@ -73,8 +73,12 @@ export default class FahConnection extends EventEmitter {
         }
         this.telnetClient = new Telnet();
 
+        this.telnetClient.on("error", (err) => {
+            this.log.warn(`[${this.connectionId}] telnet error:\n${err}`);
+        });
+
         this.telnetClient.on("timeout", () => {
-            this.log.warn(`[${this.connectionId}] timeout`);
+            this.log.warn(`[${this.connectionId}] telnet timeout`);
             if (this.telnetClient !== null) {
                 this.telnetClient.end();
             }

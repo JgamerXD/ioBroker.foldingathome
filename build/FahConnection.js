@@ -45,8 +45,11 @@ class FahConnection extends events_1.EventEmitter {
             throw "connection already open, disconnect first";
         }
         this.telnetClient = new telnet_client_1.default();
+        this.telnetClient.on("error", (err) => {
+            this.log.warn(`[${this.connectionId}] telnet error:\n${err}`);
+        });
         this.telnetClient.on("timeout", () => {
-            this.log.warn(`[${this.connectionId}] timeout`);
+            this.log.warn(`[${this.connectionId}] telnet timeout`);
             if (this.telnetClient !== null) {
                 this.telnetClient.end();
             }
