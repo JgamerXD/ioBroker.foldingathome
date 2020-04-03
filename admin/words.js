@@ -62,4 +62,16 @@ systemDictionary = {
         pl: "Hasło klienta Folding@home",
         "zh-cn": "Folding@home客户端密码",
     },
+    foldingathome__alias: {
+        en: "alias (optional)",
+        de: "Alias (optional)",
+        ru: "псевдоним (необязательно)",
+        pt: "alias (opcional)",
+        nl: "alias (optioneel)",
+        fr: "alias (facultatif)",
+        it: "alias (opzionale)",
+        es: "alias (opcional)",
+        pl: "alias (opcjonalnie)",
+        "zh-cn": "别名（可选）",
+    },
 };

@@ -42,23 +42,24 @@ class Foldingathome extends utils.Adapter {
         // The adapters config (in the instance object everything under the attribute "native") is accessible via
         // this.config:
         this.log.info("[main] config reconnect_timeout: " + this.config.foldingathome__reconnect_delay);
-        this.log.info("[main] config host: " + this.config.foldingathome__host);
-        this.log.info("[main] config port: " + this.config.foldingathome__port);
-        this.log.info("[main] config password: " + this.config.foldingathome__password);
         try {
-            // TODO: multiple connections
-            const fahConnection = new FahConnection_1.default(this.log, this.config.foldingathome__host, this.config.foldingathome__port, this.config.foldingathome__password, this.config.foldingathome__reconnect_delay);
-            this.fahConnections.push(fahConnection);
-            for (const connection of this.fahConnections) {
-                this.log.debug(`[main] creating connection ${connection.connectionId}`);
-                this.createConnectionStates(connection);
-                // connection.on("optionsUpdate", this.writeOptionStates);
-                // connection.on("queueUpdate", this.writeQueueStates);
-                // connection.on("slotsUpdate", this.writeSlotStates);
-                connection.on("data", this.onConnectionDataUpdate);
-                connection.on("connectionUpdate", this.writeConnectionState);
-                // connection.on("aliveUpdate", this.writeAliveState);
-                connection.connect();
+            for (const connection of this.config.foldingathome__connections) {
+                if (connection.host !== "") {
+                    const fahConnection = new FahConnection_1.default(this.log, connection.host, connection.port, connection.password, this.config.foldingathome__reconnect_delay, connection.alias);
+                    this.log.debug(`[main] creating connection ${fahConnection.connectionId}`);
+                    this.createConnectionStates(fahConnection);
+                    // connection.on("optionsUpdate", this.writeOptionStates);
+                    // connection.on("queueUpdate", this.writeQueueStates);
+                    // connection.on("slotsUpdate", this.writeSlotStates);
+                    fahConnection.on("data", this.onConnectionDataUpdate);
+                    fahConnection.on("connectionUpdate", this.writeConnectionState);
+                    // connection.on("aliveUpdate", this.writeAliveState);
+                    this.fahConnections.push(fahConnection);
+                    fahConnection.connect();
+                }
+                else {
+                    this.log.warn(`[main] empty hostname in options for connection ${JSON.stringify(connection)}. Will not create a connection!`);
+                }
             }
         }
         catch (error) {
@@ -143,10 +144,30 @@ class Foldingathome extends utils.Adapter {
         this.setState(`${connection.connectionId}.connection`, state, true);
     }
     onConnectionDataUpdate(connection, newData, oldData) {
+        var _a;
         this.writeOptionStates(connection, newData.options, oldData.options);
         this.writeSlotStates(connection, newData, oldData);
         this.writeAliveState(connection, newData.alive);
         this.setState(`${connection.connectionId}.json`, JSON.stringify(newData), true);
+        const table = [];
+        for (const fahc of this.fahConnections) {
+            if (fahc.fah.alive) {
+                for (const slot of fahc.fah.slots) {
+                    // find work unit run by slot
+                    const wu = (_a = fahc.fah.queue.find((wu) => wu.slot == slot.id)) !== null && _a !== void 0 ? _a : Foldingathome.emptyWorkUnit;
+                    table.push({
+                        Connection: fahc.connectionId,
+                        Id: slot.id,
+                        Slot: slot.description.split(" ")[0],
+                        Status: slot.status,
+                        Progress: wu.percentdone,
+                        ETA: wu.eta,
+                        Project: wu.project,
+                    });
+                }
+            }
+        }
+        this.setStateChangedAsync("table", JSON.stringify(table), true);
     }
     writeAliveState(connection, newAlive) {
         // set alive state to expire after 30 seconds

@@ -69,9 +69,14 @@
     },
     "native": {
         "foldingathome__reconnect_delay": "300000",
-        "foldingathome__host": "localhost",
-        "foldingathome__port": "36330",
-        "foldingathome__password": ""
+        "foldingathome__connections": [
+            {
+                "host": "",
+                "port": 36330,
+                "password": "",
+                "alias": ""
+            }
+        ]
     },
     "objects": [],
     "instanceObjects": [
@@ -93,6 +98,18 @@
                 "read": true,
                 "write": false,
                 "def": false
+            },
+            "native": {}
+        },
+        {
+            "_id": "table",
+            "type": "state",
+            "common": {
+                "role": "json",
+                "name": "connection table",
+                "type": "string",
+                "read": true,
+                "write": false
             },
             "native": {}
         }

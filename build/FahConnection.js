@@ -7,7 +7,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 const events_1 = require("events");
 const telnet_client_1 = __importDefault(require("telnet-client"));
 class FahConnection extends events_1.EventEmitter {
-    constructor(log, host, port, password = "", reconnectDelay = 300000) {
+    constructor(log, host, port, password = "", reconnectDelay = 300000, alias = null) {
         super();
         // Bind this to function
         this.onData = this.onData.bind(this);
@@ -23,7 +23,7 @@ class FahConnection extends events_1.EventEmitter {
         };
         this.password = password;
         this.connectionAddress = `${host}:${port}`;
-        this.connectionId = this.connectionAddress.replace(/\W+/g, "_");
+        this.connectionId = alias && alias !== "" ? alias : this.connectionAddress.replace(/\W+/g, "_");
         this.log.info(`[${this.connectionId}] created connection to ${this.connectionAddress}`);
         this.isShuttingDown = false;
         this.isConnected = false;
@@ -45,8 +45,11 @@ class FahConnection extends events_1.EventEmitter {
             throw "connection already open, disconnect first";
         }
         this.telnetClient = new telnet_client_1.default();
+        this.telnetClient.on("error", (err) => {
+            this.log.warn(`[${this.connectionId}] telnet error:\n${err}`);
+        });
         this.telnetClient.on("timeout", () => {
-            this.log.warn(`[${this.connectionId}] timeout`);
+            this.log.warn(`[${this.connectionId}] telnet timeout`);
             if (this.telnetClient !== null) {
                 this.telnetClient.end();
             }
@@ -74,13 +77,18 @@ class FahConnection extends events_1.EventEmitter {
         try {
             await this.telnetClient.connect(this.connectionParams);
             let res = "";
+            if (this.password !== "") {
+                res = await this.telnetClient.send(`auth ${this.password}`, { timeout: 5000 });
+                if (res.match("OK")) {
+                    this.log.info(`[${this.connectionId}] auth: OK`);
+                }
+                else {
+                    throw new Error("could not authenticate to server");
+                }
+            }
             this.isConnected = true;
             this.emit("connectionUpdate", this, "connected");
             this.isConnecting = false;
-            if (this.password !== "") {
-                res = await this.telnetClient.exec(`auth ${this.password}`);
-                this.log.info(`[${this.connectionId}] auth: ${res}`);
-            }
             res = await this.telnetClient.exec("updates clear\n");
             res += await this.telnetClient.exec("updates add 0 5 $heartbeat\n");
             res += await this.telnetClient.exec("updates add 1 1 $(options user team cause power)\n");
@@ -93,6 +101,7 @@ class FahConnection extends events_1.EventEmitter {
         catch (error) {
             this.log.error(`[${this.connectionId}] connection error:\n${error}`);
             this.emit("connectionUpdate", this, "error");
+            this.telnetClient.end();
         }
     }
     async closeConnection() {
@@ -150,7 +159,7 @@ class FahConnection extends events_1.EventEmitter {
     }
     onData(data) {
         const msg = data.toString();
-        // this.log.debug(`[${this.connectionId}] data:\n${msg}`);
+        // this.log.info(`[${this.connectionId}] data:\n${msg}`);
         let match = null;
         const regexp = /PyON \d+ \w+\n[\s\S]+?\n---/g;
         const newData = {};
@@ -164,6 +173,9 @@ class FahConnection extends events_1.EventEmitter {
                 else {
                     this.log.debug(`[${this.connectionId}] command:\n${message.command}`);
                     switch (message.command) {
+                        case "error":
+                            this.log.warn(`[${this.connectionId}] received error:\n${JSON.stringify(message.obj.error)}`);
+                            break;
                         case "units":
                             hasNewData = true;
                             newData.queue = message.obj.units;

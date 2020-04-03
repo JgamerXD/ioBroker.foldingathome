@@ -17,9 +17,7 @@ declare global {
     namespace ioBroker {
         interface AdapterConfig {
             foldingathome__reconnect_delay: number;
-            foldingathome__host: string;
-            foldingathome__port: number;
-            foldingathome__password: string;
+            foldingathome__connections: [{ host: string; port: number; password: string; alias: string }];
         }
     }
 }
@@ -85,34 +83,38 @@ class Foldingathome extends utils.Adapter {
         // The adapters config (in the instance object everything under the attribute "native") is accessible via
         // this.config:
         this.log.info("[main] config reconnect_timeout: " + this.config.foldingathome__reconnect_delay);
-        this.log.info("[main] config host: " + this.config.foldingathome__host);
-        this.log.info("[main] config port: " + this.config.foldingathome__port);
-        this.log.info("[main] config password: " + this.config.foldingathome__password);
 
         try {
-            // TODO: multiple connections
-            const fahConnection = new FahConnection(
-                this.log,
-                this.config.foldingathome__host,
-                this.config.foldingathome__port,
-                this.config.foldingathome__password,
-                this.config.foldingathome__reconnect_delay,
-            );
-            this.fahConnections.push(fahConnection);
+            for (const connection of this.config.foldingathome__connections) {
+                if (connection.host !== "") {
+                    const fahConnection = new FahConnection(
+                        this.log,
+                        connection.host,
+                        connection.port,
+                        connection.password,
+                        this.config.foldingathome__reconnect_delay,
+                        connection.alias,
+                    );
+                    this.log.debug(`[main] creating connection ${fahConnection.connectionId}`);
+                    this.createConnectionStates(fahConnection);
 
-            for (const connection of this.fahConnections) {
-                this.log.debug(`[main] creating connection ${connection.connectionId}`);
-                this.createConnectionStates(connection);
+                    // connection.on("optionsUpdate", this.writeOptionStates);
+                    // connection.on("queueUpdate", this.writeQueueStates);
+                    // connection.on("slotsUpdate", this.writeSlotStates);
+                    fahConnection.on("data", this.onConnectionDataUpdate);
 
-                // connection.on("optionsUpdate", this.writeOptionStates);
-                // connection.on("queueUpdate", this.writeQueueStates);
-                // connection.on("slotsUpdate", this.writeSlotStates);
-                connection.on("data", this.onConnectionDataUpdate);
+                    fahConnection.on("connectionUpdate", this.writeConnectionState);
+                    // connection.on("aliveUpdate", this.writeAliveState);
 
-                connection.on("connectionUpdate", this.writeConnectionState);
-                // connection.on("aliveUpdate", this.writeAliveState);
-
-                connection.connect();
+                    this.fahConnections.push(fahConnection);
+                    fahConnection.connect();
+                } else {
+                    this.log.warn(
+                        `[main] empty hostname in options for connection ${JSON.stringify(
+                            connection,
+                        )}. Will not create a connection!`,
+                    );
+                }
             }
         } catch (error) {
             this.log.error(`[main] Error while creating connection: ${error}`);
@@ -207,6 +209,33 @@ class Foldingathome extends utils.Adapter {
         this.writeSlotStates(connection, newData, oldData);
         this.writeAliveState(connection, newData.alive);
         this.setState(`${connection.connectionId}.json`, JSON.stringify(newData), true);
+        const table: Array<{
+            Connection: string;
+            Id: string;
+            Slot: string;
+            Status: string;
+            Progress: string;
+            ETA: string;
+            Project: number;
+        }> = [];
+        for (const fahc of this.fahConnections) {
+            if (fahc.fah.alive) {
+                for (const slot of fahc.fah.slots) {
+                    // find work unit run by slot
+                    const wu = fahc.fah.queue.find((wu) => wu.slot == slot.id) ?? Foldingathome.emptyWorkUnit;
+                    table.push({
+                        Connection: fahc.connectionId,
+                        Id: slot.id,
+                        Slot: slot.description.split(" ")[0],
+                        Status: slot.status,
+                        Progress: wu.percentdone,
+                        ETA: wu.eta,
+                        Project: wu.project,
+                    });
+                }
+            }
+        }
+        this.setStateChangedAsync("table", JSON.stringify(table), true);
     }
 
     writeAliveState(connection: FahConnection, newAlive: boolean): void {

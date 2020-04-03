@@ -34,6 +34,8 @@
                     }
                 });
                 onChange(false);
+
+                values2table('foldingathome__connections',settings.foldingathome__connections || [],onChange);
                 // reinitialize all the Materialize labels on the page if you are dynamically adding inputs:
                 if (M) M.updateTextFields();
             }
@@ -50,6 +52,7 @@
                         obj[$this.attr("id")] = $this.val();
                     }
                 });
+                obj.foldingathome__connections = table2values('foldingathome__connections');
                 callback(obj);
             }
         </script>
@@ -72,21 +75,52 @@
                     <label for="foldingathome__reconnect_delay" class="translate">foldingathome__reconnect_delay</label>
                 </div>
 
-                <div class="col s4 input-field">
+                <!-- <div class="col s4 input-field">
                     <input type="text" class="value" id="foldingathome__host" value="127.0.0.1" />
                     <label for="foldingathome__host" class="translate">foldingathome__host</label>
-                </div>
+                </div> -->
 
-                <div class="col s4 input-field">
+                <!-- <div class="col s4 input-field">
                     <input type="number" class="value" id="foldingathome__port" value="36330" />
                     <label for="foldingathome__port" class="translate">foldingathome__port</label>
-                </div>
+                </div> -->
 
                 <!-- FIXME: encrypt password -->
-                <div class="col s4 input-field">
+                <!-- <div class="col s4 input-field">
                     <input type="text" class="value" id="foldingathome__password" />
                     <label for="foldingathome__password" class="translate">foldingathome__password</label>
+                </div> -->
+            </div>
+            <div class="row">
+                <div class="col s12" id="foldingathome__connections">
+                    <a class="btn-floating waves-effect waves-light blue table-button-add"
+                        ><i class="material-icons">add</i></a
+                    >
+                    <div class="table-values-div">
+                        <table class="table-values">
+                            <thead>
+                                <tr>
+                                    <th data-name="host" style="width: 30%;" data-type="text" data-value="127.0.0.1"  class="translate">foldingathome__host</th>
+                                    <th data-name="port" style="width: 10%;" data-type="number" data-value="36330" class="translate">foldingathome__port</th>
+                                    <th data-name="password" style="width: 20%;" data-type="text" class="translate">foldingathome__password</th>
+                                    <th data-name="alias" style="width: 30%;" data-type="text" class="translate">foldingathome__alias</th>
+                                    <th data-buttons="delete" style="width: 10%;"></th>
+                                </tr>
+                            </thead>
+                        </table>
+                    </div>
                 </div>
+            </div>
+            <!-- <div class="row">
+                <div class="col s4 input-field">
+                    <span class="translate">table name help</span>
+                </div>
+                <div class="col s4 input-field">
+                    <span class="translate">table match help</span>
+                </div>
+                <div class="col s4 input-field">
+                    <span class="translate">table color help</span>
+                </div> -->
             </div>
         </div>
     </body>
