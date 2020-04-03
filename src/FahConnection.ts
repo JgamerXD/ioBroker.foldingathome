@@ -112,14 +112,18 @@ export default class FahConnection extends EventEmitter {
             await this.telnetClient.connect(this.connectionParams);
 
             let res = "";
+            if (this.password !== "") {
+                res = await this.telnetClient.send(`auth ${this.password}`, { timeout: 5000 });
+                if (res.match("OK")) {
+                    this.log.info(`[${this.connectionId}] auth: OK`);
+                } else {
+                    throw new Error("could not authenticate to server");
+                }
+            }
             this.isConnected = true;
             this.emit("connectionUpdate", this, "connected");
 
             this.isConnecting = false;
-            if (this.password !== "") {
-                res = await this.telnetClient.exec(`auth ${this.password}`);
-                this.log.info(`[${this.connectionId}] auth: ${res}`);
-            }
 
             res = await this.telnetClient.exec("updates clear\n");
             res += await this.telnetClient.exec("updates add 0 5 $heartbeat\n");
@@ -133,6 +137,7 @@ export default class FahConnection extends EventEmitter {
         } catch (error) {
             this.log.error(`[${this.connectionId}] connection error:\n${error}`);
             this.emit("connectionUpdate", this, "error");
+            this.telnetClient.end();
         }
     }
 
@@ -191,7 +196,7 @@ export default class FahConnection extends EventEmitter {
 
     onData(data: Buffer | string): void {
         const msg = data.toString();
-        // this.log.debug(`[${this.connectionId}] data:\n${msg}`);
+        // this.log.info(`[${this.connectionId}] data:\n${msg}`);
         let match: RegExpMatchArray | null = null;
         const regexp = /PyON \d+ \w+\n[\s\S]+?\n---/g;
 
@@ -207,6 +212,11 @@ export default class FahConnection extends EventEmitter {
                     this.log.debug(`[${this.connectionId}] command:\n${message.command}`);
 
                     switch (message.command) {
+                        case "error":
+                            this.log.warn(
+                                `[${this.connectionId}] received error:\n${JSON.stringify(message.obj.error)}`,
+                            );
+                            break;
                         case "units":
                             hasNewData = true;
                             newData.queue = message.obj.units;
