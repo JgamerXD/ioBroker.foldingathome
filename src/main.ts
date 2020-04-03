@@ -86,30 +86,35 @@ class Foldingathome extends utils.Adapter {
 
         try {
             for (const connection of this.config.foldingathome__connections) {
-                this.log.info("[main] config host: " + connection.host);
-                this.log.info("[main] config port: " + connection.port);
-                this.log.info("[main] config password: " + connection.password);
-                const fahConnection = new FahConnection(
-                    this.log,
-                    connection.host,
-                    connection.port,
-                    connection.password,
-                    this.config.foldingathome__reconnect_delay,
-                    connection.alias,
-                );
-                this.log.debug(`[main] creating connection ${fahConnection.connectionId}`);
-                this.createConnectionStates(fahConnection);
+                if (connection.host !== "") {
+                    const fahConnection = new FahConnection(
+                        this.log,
+                        connection.host,
+                        connection.port,
+                        connection.password,
+                        this.config.foldingathome__reconnect_delay,
+                        connection.alias,
+                    );
+                    this.log.debug(`[main] creating connection ${fahConnection.connectionId}`);
+                    this.createConnectionStates(fahConnection);
 
-                // connection.on("optionsUpdate", this.writeOptionStates);
-                // connection.on("queueUpdate", this.writeQueueStates);
-                // connection.on("slotsUpdate", this.writeSlotStates);
-                fahConnection.on("data", this.onConnectionDataUpdate);
+                    // connection.on("optionsUpdate", this.writeOptionStates);
+                    // connection.on("queueUpdate", this.writeQueueStates);
+                    // connection.on("slotsUpdate", this.writeSlotStates);
+                    fahConnection.on("data", this.onConnectionDataUpdate);
 
-                fahConnection.on("connectionUpdate", this.writeConnectionState);
-                // connection.on("aliveUpdate", this.writeAliveState);
+                    fahConnection.on("connectionUpdate", this.writeConnectionState);
+                    // connection.on("aliveUpdate", this.writeAliveState);
 
-                this.fahConnections.push(fahConnection);
-                fahConnection.connect();
+                    this.fahConnections.push(fahConnection);
+                    fahConnection.connect();
+                } else {
+                    this.log.warn(
+                        `[main] empty hostname in options for connection ${JSON.stringify(
+                            connection,
+                        )}. Will not create a connection!`,
+                    );
+                }
             }
         } catch (error) {
             this.log.error(`[main] Error while creating connection: ${error}`);

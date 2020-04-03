@@ -71,7 +71,7 @@
         "foldingathome__reconnect_delay": "300000",
         "foldingathome__connections": [
             {
-                "host": "localhost",
+                "host": "",
                 "port": 36330,
                 "password": "",
                 "alias": ""
