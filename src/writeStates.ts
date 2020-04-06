@@ -256,7 +256,10 @@ export function writeSlotStates(
                 adapter.setState(`${slotCh}.options`, JSON.stringify(newSlot.options), true);
             }
 
-            const newWU = newData.queue.find((wu) => wu.slot == id) ?? FahConnection.emptyWorkUnit;
+            const newWU = newData.alive
+                ? newData.queue.find((wu) => wu.slot == id) ?? FahConnection.emptyWorkUnit
+                : FahConnection.emptyWorkUnit;
+
             const oldWU = slot.isOld ? oldData?.queue.find((wu) => wu.slot == id) : null;
 
             adapter.setObjectNotExists(`${slotCh}.wu`, {
