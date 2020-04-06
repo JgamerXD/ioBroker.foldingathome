@@ -35,6 +35,19 @@ export function createConnectionStates(adapter: ioBroker.Adapter, connection: Fa
     });
     adapter.setState(`${connection.connectionId}.json`, JSON.stringify(connection.fah), true);
 
+    adapter.setObjectNotExists(`${connection.connectionId}.ppd`, {
+        type: "state",
+        common: {
+            name: "estimated ppd",
+            type: "number",
+            role: "value",
+            read: true,
+            write: false,
+        },
+        native: {},
+    });
+    adapter.setState(`${connection.connectionId}.ppd`, 0, true);
+
     adapter.setObjectNotExists(`${connection.connectionId}.alive`, {
         type: "state",
         common: {
@@ -62,6 +75,44 @@ export function createConnectionStates(adapter: ioBroker.Adapter, connection: Fa
         },
         native: {},
     });
+}
+
+export function writeOtherStates(adapter: ioBroker.Adapter, connections: Array<FahConnection>): void {
+    const table: Array<{
+        Connection: string;
+        Id: string;
+        Slot: string;
+        Status: string;
+        Progress: string;
+        ETA: string;
+        Project: number;
+    }> = [];
+
+    let combinedPPD = 0;
+    for (const fahc of connections) {
+        if (fahc.fah.alive) {
+            let combinedConnectionPPD = 0;
+            for (const wu of fahc.fah.queue) {
+                combinedConnectionPPD += Number(wu.ppd);
+
+                // find work unit run by slot
+                const slot = fahc.fah.slots.find((slot) => slot.id == wu.slot);
+                table.push({
+                    Connection: fahc.connectionId,
+                    Id: wu.id,
+                    Slot: slot?.description.split(" ")[0] ?? "?",
+                    Status: wu.state,
+                    Progress: wu.percentdone + "%",
+                    ETA: wu.eta,
+                    Project: wu.project,
+                });
+            }
+            combinedPPD += combinedConnectionPPD;
+            adapter.setStateChangedAsync(`${fahc.connectionId}.ppd`, combinedConnectionPPD, true);
+        }
+    }
+    adapter.setStateChangedAsync("ppd", combinedPPD, true);
+    adapter.setStateChangedAsync("table", JSON.stringify(table), true);
 }
 
 export function writeAliveState(

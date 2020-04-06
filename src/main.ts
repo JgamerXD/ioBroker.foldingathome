@@ -6,7 +6,7 @@
 // you need to create an adapter
 import * as utils from "@iobroker/adapter-core";
 import FahConnection from "./FahConnection";
-import { createConnectionStates, writeAliveState, writeOptionStates, writeSlotStates } from "./writeStates";
+import * as writestates from "./writeStates";
 
 // Load your modules here, e.g.:
 // import * as fs from "fs";
@@ -67,7 +67,7 @@ class Foldingathome extends utils.Adapter {
                         connection.alias,
                     );
                     this.log.debug(`[main] creating connection ${fahConnection.connectionId}`);
-                    createConnectionStates(this, fahConnection);
+                    writestates.createConnectionStates(this, fahConnection);
 
                     fahConnection.on("data", this.onConnectionDataUpdate);
 
@@ -108,41 +108,12 @@ class Foldingathome extends utils.Adapter {
     }
 
     onConnectionDataUpdate(connection: FahConnection, newData: FahDataType, oldData: FahDataType): void {
-        writeOptionStates(this, connection, newData.options, oldData.options);
-        writeSlotStates(this, connection, newData, oldData);
-        writeAliveState(this, this.fahConnections, connection, newData.alive);
+        writestates.writeOptionStates(this, connection, newData.options, oldData.options);
+        writestates.writeSlotStates(this, connection, newData, oldData);
+        writestates.writeAliveState(this, this.fahConnections, connection, newData.alive);
+        writestates.writeOtherStates(this, this.fahConnections);
+
         this.setState(`${connection.connectionId}.json`, JSON.stringify(newData), true);
-        const table: Array<{
-            Connection: string;
-            Id: string;
-            Slot: string;
-            Status: string;
-            Progress: string;
-            ETA: string;
-            Project: number;
-        }> = [];
-
-        let combinedPPD = 0;
-        for (const fahc of this.fahConnections) {
-            if (fahc.fah.alive) {
-                for (const wu of fahc.fah.queue) {
-                    combinedPPD += Number(wu.ppd);
-
-                    // find work unit run by slot
-                    const slot = fahc.fah.slots.find((slot) => slot.id == wu.slot);
-                    table.push({
-                        Connection: fahc.connectionId,
-                        Id: wu.id,
-                        Slot: slot?.description.split(" ")[0] ?? "?",
-                        Status: wu.state,
-                        Progress: wu.percentdone,
-                        ETA: wu.eta,
-                        Project: wu.project,
-                    });
-                }
-            }
-        }
-        this.setStateChangedAsync("table", JSON.stringify(table), true);
     }
 }
 

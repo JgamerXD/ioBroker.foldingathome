@@ -112,6 +112,18 @@
                 "write": false
             },
             "native": {}
+        },
+        {
+            "_id": "ppd",
+            "type": "state",
+            "common": {
+                "role": "value",
+                "name": "estimated ppd of all connections",
+                "type": "number",
+                "read": true,
+                "write": false
+            },
+            "native": {}
         }
     ]
 }
