@@ -17,7 +17,7 @@
 
 Get information about [Folding@home](https://foldingathome.org/) clients.
 
-This adapter utilizes the [3rd party foldingathomeClient API](https://github.com/FoldingAtHome/foldingathome-control/wiki/3rd-party-foldingathomeClient-API) to get information about Folding@home clients.
+This adapter utilizes the [3rd party foldingathomeClient API](https://github.com/FoldingAtHome/fah-control/wiki/3rd-party-FAHClient-API) to get information about Folding@home clients.
 
 ### Setup
 
