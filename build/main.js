@@ -17,8 +17,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 // you need to create an adapter
 const utils = __importStar(require("@iobroker/adapter-core"));
 const FahConnection_1 = __importDefault(require("./FahConnection"));
-require("./writeStates");
-const writeStates_1 = require("./writeStates");
+const writestates = __importStar(require("./writeStates"));
 class Foldingathome extends utils.Adapter {
     constructor(options = {}) {
         super({
@@ -44,23 +43,14 @@ class Foldingathome extends utils.Adapter {
         // The adapters config (in the instance object everything under the attribute "native") is accessible via
         // this.config:
         this.log.info("[main] config reconnect_timeout: " + this.config.foldingathome__reconnect_delay);
-        this.getForeignObject("system.config", (err, obj) => {
-            var _a, _b;
-            //noinspection JSUnresolvedVariable
-            this.config.clientSecret = this.decrypt((_b = (_a = obj === null || obj === void 0 ? void 0 : obj.native) === null || _a === void 0 ? void 0 : _a.secret) !== null && _b !== void 0 ? _b : "8DYVT0lC1Er5sEVm", this.config.clientSecret);
-        });
         try {
             for (const connection of this.config.foldingathome__connections) {
                 if (connection.host !== "") {
                     const fahConnection = new FahConnection_1.default(this.log, connection.host, connection.port, connection.password, this.config.foldingathome__reconnect_delay, connection.alias);
                     this.log.debug(`[main] creating connection ${fahConnection.connectionId}`);
-                    this.createConnectionStates(fahConnection);
-                    // connection.on("optionsUpdate", this.writeOptionStates);
-                    // connection.on("queueUpdate", this.writeQueueStates);
-                    // connection.on("slotsUpdate", this.writeSlotStates);
+                    writestates.createConnectionStates(this, fahConnection);
                     fahConnection.on("data", this.onConnectionDataUpdate);
                     fahConnection.on("connectionUpdate", this.writeConnectionState);
-                    // connection.on("aliveUpdate", this.writeAliveState);
                     this.fahConnections.push(fahConnection);
                     fahConnection.connect();
                 }
@@ -88,100 +78,15 @@ class Foldingathome extends utils.Adapter {
             callback();
         }
     }
-    decrypt(key, value) {
-        let result = "";
-        for (let i = 0; i < value.length; ++i) {
-            result += String.fromCharCode(key[i % key.length].charCodeAt(0) ^ value.charCodeAt(i));
-        }
-        return result;
-    }
-    createConnectionStates(connection) {
-        this.setObjectNotExists(`${connection.connectionId}`, {
-            type: "device",
-            common: {
-                name: `Folding@home at ${connection.connectionAddress}`,
-            },
-            native: {},
-        });
-        this.setObjectNotExists(`${connection.connectionId}.connection`, {
-            type: "state",
-            common: {
-                name: "connection state",
-                type: "string",
-                role: "state",
-                read: true,
-                write: false,
-            },
-            native: {},
-        });
-        this.setState(`${connection.connectionId}.connection`, "disconnected", true);
-        this.setObjectNotExists(`${connection.connectionId}.json`, {
-            type: "state",
-            common: {
-                name: "raw fah data as json",
-                type: "string",
-                role: "json",
-                read: true,
-                write: false,
-            },
-            native: {},
-        });
-        this.setState(`${connection.connectionId}.json`, JSON.stringify(connection.fah), true);
-        this.setObjectNotExists(`${connection.connectionId}.alive`, {
-            type: "state",
-            common: {
-                name: "connection alive",
-                type: "indicator",
-                role: "indicator.reachable",
-                read: true,
-                write: false,
-            },
-            native: {},
-        });
-        this.setState(`${connection.connectionId}.alive`, false, true);
-        this.setObjectNotExists(`${connection.connectionId}.slots`, {
-            type: "channel",
-            common: {
-                name: `slots`,
-            },
-            native: {},
-        });
-        this.setObjectNotExists(`${connection.connectionId}.options`, {
-            type: "channel",
-            common: {
-                name: `options`,
-            },
-            native: {},
-        });
-    }
     writeConnectionState(connection, state) {
         this.setState(`${connection.connectionId}.connection`, state, true);
     }
     onConnectionDataUpdate(connection, newData, oldData) {
-        var _a;
-        writeStates_1.writeOptionStates(this, connection, newData.options, oldData.options);
-        writeStates_1.writeSlotStates(this, connection, newData, oldData);
-        writeStates_1.writeAliveState(this, this.fahConnections, connection, newData.alive);
+        writestates.writeOptionStates(this, connection, newData.options, oldData.options);
+        writestates.writeSlotStates(this, connection, newData, oldData);
+        writestates.writeAliveState(this, this.fahConnections, connection, newData.alive);
+        writestates.writeOtherStates(this, this.fahConnections);
         this.setState(`${connection.connectionId}.json`, JSON.stringify(newData), true);
-        const table = [];
-        for (const fahc of this.fahConnections) {
-            if (fahc.fah.alive) {
-                for (const wu of fahc.fah.queue) {
-                    // find work unit run by slot
-                    const slot = fahc.fah.slots.find((slot) => slot.id == wu.slot);
-                    table.push({
-                        Connection: fahc.connectionId,
-                        Id: wu.id,
-                        Slot: (_a = slot === null || slot === void 0 ? void 0 : slot.description.split(" ")[0]) !== null && _a !== void 0 ? _a : "?",
-                        Status: wu.state,
-                        Progress: wu.percentdone,
-                        ETA: wu.eta,
-                        Project: wu.project,
-                    });
-                }
-            }
-        }
-        this.setStateChangedAsync("table", JSON.stringify(table), true);
     }
 }
 if (module.parent) {

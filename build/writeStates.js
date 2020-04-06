@@ -4,6 +4,107 @@ var __importDefault = (this && this.__importDefault) || function (mod) {
 };
 Object.defineProperty(exports, "__esModule", { value: true });
 const FahConnection_1 = __importDefault(require("./FahConnection"));
+function createConnectionStates(adapter, connection) {
+    adapter.setObjectNotExists(`${connection.connectionId}`, {
+        type: "device",
+        common: {
+            name: `Folding@home at ${connection.connectionAddress}`,
+        },
+        native: {},
+    });
+    adapter.setObjectNotExists(`${connection.connectionId}.connection`, {
+        type: "state",
+        common: {
+            name: "connection state",
+            type: "string",
+            role: "state",
+            read: true,
+            write: false,
+        },
+        native: {},
+    });
+    adapter.setState(`${connection.connectionId}.connection`, "disconnected", true);
+    adapter.setObjectNotExists(`${connection.connectionId}.json`, {
+        type: "state",
+        common: {
+            name: "raw fah data as json",
+            type: "string",
+            role: "json",
+            read: true,
+            write: false,
+        },
+        native: {},
+    });
+    adapter.setState(`${connection.connectionId}.json`, JSON.stringify(connection.fah), true);
+    adapter.setObjectNotExists(`${connection.connectionId}.ppd`, {
+        type: "state",
+        common: {
+            name: "estimated ppd",
+            type: "number",
+            role: "value",
+            read: true,
+            write: false,
+        },
+        native: {},
+    });
+    adapter.setState(`${connection.connectionId}.ppd`, 0, true);
+    adapter.setObjectNotExists(`${connection.connectionId}.alive`, {
+        type: "state",
+        common: {
+            name: "connection alive",
+            type: "indicator",
+            role: "indicator.reachable",
+            read: true,
+            write: false,
+        },
+        native: {},
+    });
+    adapter.setState(`${connection.connectionId}.alive`, false, true);
+    adapter.setObjectNotExists(`${connection.connectionId}.slots`, {
+        type: "channel",
+        common: {
+            name: `slots`,
+        },
+        native: {},
+    });
+    adapter.setObjectNotExists(`${connection.connectionId}.options`, {
+        type: "channel",
+        common: {
+            name: `options`,
+        },
+        native: {},
+    });
+}
+exports.createConnectionStates = createConnectionStates;
+function writeOtherStates(adapter, connections) {
+    var _a;
+    const table = [];
+    let combinedPPD = 0;
+    for (const fahc of connections) {
+        if (fahc.fah.alive) {
+            let combinedConnectionPPD = 0;
+            for (const wu of fahc.fah.queue) {
+                combinedConnectionPPD += Number(wu.ppd);
+                // find work unit run by slot
+                const slot = fahc.fah.slots.find((slot) => slot.id == wu.slot);
+                table.push({
+                    Connection: fahc.connectionId,
+                    Id: wu.id,
+                    Slot: (_a = slot === null || slot === void 0 ? void 0 : slot.description.split(" ")[0]) !== null && _a !== void 0 ? _a : "?",
+                    Status: wu.state,
+                    Progress: wu.percentdone + "%",
+                    ETA: wu.eta,
+                    Project: wu.project,
+                });
+            }
+            combinedPPD += combinedConnectionPPD;
+            adapter.setStateChangedAsync(`${fahc.connectionId}.ppd`, combinedConnectionPPD, true);
+        }
+    }
+    adapter.setStateChangedAsync("ppd", combinedPPD, true);
+    adapter.setStateChangedAsync("table", JSON.stringify(table), true);
+}
+exports.writeOtherStates = writeOtherStates;
 function writeAliveState(adapter, allConnections, connection, newAlive) {
     // set alive state to expire after 30 seconds
     adapter.setState(`${connection.connectionId}.alive`, { val: newAlive, expire: 30 }, true);
@@ -170,7 +271,8 @@ function writeSlotStates(adapter, connection, newData, oldData = null) {
             if (newSlot.options !== (oldSlot === null || oldSlot === void 0 ? void 0 : oldSlot.options)) {
                 adapter.setState(`${slotCh}.options`, JSON.stringify(newSlot.options), true);
             }
-            const newWU = (_a = newData.queue.find((wu) => wu.slot == id)) !== null && _a !== void 0 ? _a : FahConnection_1.default.emptyWorkUnit;
+            const newWU = newData.alive
+                ? (_a = newData.queue.find((wu) => wu.slot == id)) !== null && _a !== void 0 ? _a : FahConnection_1.default.emptyWorkUnit : FahConnection_1.default.emptyWorkUnit;
             const oldWU = slot.isOld ? oldData === null || oldData === void 0 ? void 0 : oldData.queue.find((wu) => wu.slot == id) : null;
             adapter.setObjectNotExists(`${slotCh}.wu`, {
                 type: "channel",
@@ -316,8 +418,9 @@ function writeWorkUnitStates(adapter, wuCh, newWU, oldWU = null) {
         type: "state",
         common: {
             name: "percent done",
-            type: "string",
-            role: "state",
+            type: "number",
+            role: "value",
+            unit: "%",
             read: true,
             write: false,
         },
@@ -326,7 +429,6 @@ function writeWorkUnitStates(adapter, wuCh, newWU, oldWU = null) {
     if (newWU.percentdone !== (oldWU === null || oldWU === void 0 ? void 0 : oldWU.percentdone)) {
         adapter.setState(`${wuCh}.percentdone`, newWU.percentdone, true);
     }
-    // TODO: convert to time
     adapter.setObjectNotExists(`${wuCh}.eta`, {
         type: "state",
         common: {
@@ -345,8 +447,8 @@ function writeWorkUnitStates(adapter, wuCh, newWU, oldWU = null) {
         type: "state",
         common: {
             name: "points per day",
-            type: "string",
-            role: "state",
+            type: "number",
+            role: "value",
             read: true,
             write: false,
         },
@@ -359,8 +461,8 @@ function writeWorkUnitStates(adapter, wuCh, newWU, oldWU = null) {
         type: "state",
         common: {
             name: "credit estimate",
-            type: "string",
-            role: "state",
+            type: "number",
+            role: "value",
             read: true,
             write: false,
         },
@@ -444,7 +546,7 @@ function writeWorkUnitStates(adapter, wuCh, newWU, oldWU = null) {
         common: {
             name: "assigned",
             type: "string",
-            role: "state",
+            role: "date",
             read: true,
             write: false,
         },
@@ -458,7 +560,7 @@ function writeWorkUnitStates(adapter, wuCh, newWU, oldWU = null) {
         common: {
             name: "timeout",
             type: "string",
-            role: "state",
+            role: "date",
             read: true,
             write: false,
         },
@@ -472,7 +574,7 @@ function writeWorkUnitStates(adapter, wuCh, newWU, oldWU = null) {
         common: {
             name: "deadline",
             type: "string",
-            role: "state",
+            role: "date",
             read: true,
             write: false,
         },
@@ -555,8 +657,8 @@ function writeWorkUnitStates(adapter, wuCh, newWU, oldWU = null) {
         type: "state",
         common: {
             name: "base credit",
-            type: "string",
-            role: "state",
+            type: "number",
+            role: "value",
             read: true,
             write: false,
         },
