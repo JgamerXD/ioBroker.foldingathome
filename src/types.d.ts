@@ -6,7 +6,7 @@ type FahDataType = {
 };
 type FahOptionsType = {
     user: string;
-    team: string; // number
+    team: string;
     cause: string;
     power: string;
 };
@@ -22,7 +22,7 @@ type FahSlotType = {
     idle: boolean;
 };
 type FahWorkUnitType = {
-    id: string; // TODO: number
+    id: string;
     state: string;
     error: string;
     project: number;
@@ -31,25 +31,26 @@ type FahWorkUnitType = {
     gen: number;
     core: string;
     unit: string;
-    percentdone: string; // TODO: number
+    percentdone: number; // TODO: number
     eta: string; // TODO: duration/time
-    ppd: string; // TODO: number
-    creditestimate: string; // TODO: number
+    ppd: number; // TODO: number
+    creditestimate: number;
     waitingon: string;
     nextattempt: string; // TODO: duration/time
     timeremaining: string; // TODO: duration/time
     totalframes: number;
     framesdone: number;
-    assigned: string; // TODO: time
-    timeout: string; // TODO: time
-    deadline: string; // TODO: time
+    assigned: string; // Date | null;
+    timeout: string; // Date | null;
+    deadline: string; // Date | null;
     ws: string;
     cs: string;
     attempts: number;
     slot: string;
     tpf: string; // TODO: duration/time
-    basecredit: string; // TODO: number
+    basecredit: number; // TODO: number
 };
+
 type ParsedPyONType = {
     isPyON: boolean;
     version?: string;

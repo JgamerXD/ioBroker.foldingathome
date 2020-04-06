@@ -1,7 +1,7 @@
 {
     "common": {
         "name": "foldingathome",
-        "version": "0.0.2",
+        "version": "0.0.3",
         "news": {
             "0.0.1": {
                 "en": "initial release",
@@ -14,19 +14,27 @@
                 "es": "Versión inicial",
                 "pl": "Pierwsze wydanie",
                 "zh-cn": "首次出版"
+            },
+            "0.0.2": {
+                "en": "improved state structure",
+                "de": "Struktur der States verbessert"
+            },
+            "0.0.3": {
+                "en": "additional states and improved state roles",
+                "de": "Mehr States und bessere Rollen"
             }
         },
         "title": "Folding@home status",
         "titleLang": {
             "en": "Folding@home status",
-            "de": "Folding @ home Status",
-            "ru": "Складной @ домашний статус",
-            "pt": "Status Folding @ home",
-            "nl": "Folding @ home status",
-            "fr": "Statut Folding @ home",
-            "it": "Stato pieghevole @ home",
-            "es": "Plegable @ estado de casa",
-            "pl": "Folding @ home status",
+            "de": "Folding@home Status",
+            "ru": "Folding@home статус",
+            "pt": "Status Folding@home",
+            "nl": "Folding@home status",
+            "fr": "Statut Folding@home",
+            "it": "Stato Folding@home",
+            "es": "Estado  Folding@home",
+            "pl": "Folding@home status",
             "zh-cn": "折叠@家庭状态"
         },
         "desc": {
@@ -108,6 +116,18 @@
                 "role": "json",
                 "name": "connection table",
                 "type": "string",
+                "read": true,
+                "write": false
+            },
+            "native": {}
+        },
+        {
+            "_id": "ppd",
+            "type": "state",
+            "common": {
+                "role": "value",
+                "name": "estimated ppd of all connections",
+                "type": "number",
                 "read": true,
                 "write": false
             },
