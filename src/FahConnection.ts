@@ -2,7 +2,67 @@
 import { EventEmitter } from "events";
 import Telnet, { ConnectOptions } from "telnet-client";
 
+type RawFahWorkUnitType = {
+    id: string;
+    state: string;
+    error: string;
+    project: number;
+    run: number;
+    clone: number;
+    gen: number;
+    core: string;
+    unit: string;
+    percentdone: string;
+    eta: string;
+    ppd: string;
+    creditestimate: string;
+    waitingon: string;
+    nextattempt: string;
+    timeremaining: string;
+    totalframes: number;
+    framesdone: number;
+    assigned: string;
+    timeout: string;
+    deadline: string;
+    ws: string;
+    cs: string;
+    attempts: number;
+    slot: string;
+    tpf: string;
+    basecredit: string;
+};
+
 export default class FahConnection extends EventEmitter {
+    static emptyWorkUnit: FahWorkUnitType = {
+        id: "",
+        state: "NO_WU",
+        error: "NO_ERROR",
+        project: 0,
+        run: 0,
+        clone: -1,
+        gen: -1,
+        core: "unknown",
+        unit: "0x00000000000000000000000000000000",
+        percentdone: 0.0,
+        eta: "0.00 secs",
+        ppd: 0,
+        creditestimate: 0,
+        waitingon: "Unknown",
+        nextattempt: "0.00 secs",
+        timeremaining: "0.00 secs",
+        totalframes: 0,
+        framesdone: 0,
+        assigned: "<invalid>",
+        timeout: "<invalid>",
+        deadline: "<invalid>",
+        ws: "0.0.0.0",
+        cs: "0.0.0.0",
+        attempts: -1,
+        slot: "<invalid>",
+        tpf: "0.00 secs",
+        basecredit: 0,
+    };
+
     log: ioBroker.Logger;
     telnetClient: null | Telnet;
     connectionParams: ConnectOptions;
@@ -119,6 +179,8 @@ export default class FahConnection extends EventEmitter {
                 } else {
                     throw new Error("could not authenticate to server");
                 }
+            } else {
+                this.log.info(`[${this.connectionId}] auth: no password configured/required`);
             }
             this.isConnected = true;
             this.emit("connectionUpdate", this, "connected");
@@ -219,7 +281,7 @@ export default class FahConnection extends EventEmitter {
                             break;
                         case "units":
                             hasNewData = true;
-                            newData.queue = message.obj.units;
+                            newData.queue = message.obj.units.map(this.convertWorkUnit);
                             break;
                         case "slots":
                             hasNewData = true;
@@ -263,5 +325,38 @@ export default class FahConnection extends EventEmitter {
         const newData = { ...this.fah, ...changed };
         this.emit("data", this, newData, oldData);
         this.fah = newData;
+    }
+    private convertWorkUnit(rawUnit: RawFahWorkUnitType): FahWorkUnitType {
+        const unit: FahWorkUnitType = {
+            id: rawUnit.id,
+            state: rawUnit.state,
+            error: rawUnit.error,
+            project: rawUnit.project,
+            run: rawUnit.run,
+            clone: rawUnit.clone,
+            gen: rawUnit.gen,
+            core: rawUnit.core,
+            unit: rawUnit.unit,
+            percentdone: parseFloat(rawUnit.percentdone),
+            eta: rawUnit.eta,
+            ppd: parseInt(rawUnit.ppd),
+            creditestimate: parseInt(rawUnit.creditestimate),
+            waitingon: rawUnit.waitingon,
+            nextattempt: rawUnit.nextattempt,
+            timeremaining: rawUnit.timeremaining,
+            totalframes: rawUnit.totalframes,
+            framesdone: rawUnit.framesdone,
+            assigned: rawUnit.assigned, //  !== "<invalid>" ? new Date(rawUnit.assigned) : null,
+            timeout: rawUnit.timeout, // !== "<invalid>" ? new Date(rawUnit.timeout) : null,
+            deadline: rawUnit.deadline, // !== "<invalid>" ? new Date(rawUnit.deadline) : null,
+            ws: rawUnit.ws,
+            cs: rawUnit.cs,
+            attempts: rawUnit.attempts,
+            slot: rawUnit.slot,
+            tpf: rawUnit.tpf,
+            basecredit: parseInt(rawUnit.basecredit),
+        };
+
+        return unit;
     }
 }

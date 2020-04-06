@@ -472,8 +472,9 @@ export function writeWorkUnitStates(
         type: "state",
         common: {
             name: "percent done",
-            type: "string",
-            role: "state",
+            type: "number",
+            role: "value",
+            unit: "%",
             read: true,
             write: false,
         },
@@ -483,7 +484,6 @@ export function writeWorkUnitStates(
         adapter.setState(`${wuCh}.percentdone`, newWU.percentdone, true);
     }
 
-    // TODO: convert to time
     adapter.setObjectNotExists(`${wuCh}.eta`, {
         type: "state",
         common: {
@@ -503,8 +503,8 @@ export function writeWorkUnitStates(
         type: "state",
         common: {
             name: "points per day",
-            type: "string",
-            role: "state",
+            type: "number",
+            role: "value",
             read: true,
             write: false,
         },
@@ -518,8 +518,8 @@ export function writeWorkUnitStates(
         type: "state",
         common: {
             name: "credit estimate",
-            type: "string",
-            role: "state",
+            type: "number",
+            role: "value",
             read: true,
             write: false,
         },
@@ -610,7 +610,7 @@ export function writeWorkUnitStates(
         common: {
             name: "assigned",
             type: "string",
-            role: "state",
+            role: "date",
             read: true,
             write: false,
         },
@@ -625,7 +625,7 @@ export function writeWorkUnitStates(
         common: {
             name: "timeout",
             type: "string",
-            role: "state",
+            role: "date",
             read: true,
             write: false,
         },
@@ -640,7 +640,7 @@ export function writeWorkUnitStates(
         common: {
             name: "deadline",
             type: "string",
-            role: "state",
+            role: "date",
             read: true,
             write: false,
         },
@@ -713,7 +713,7 @@ export function writeWorkUnitStates(
     adapter.setObjectNotExists(`${wuCh}.tpf`, {
         type: "state",
         common: {
-            name: "time per frame", // TODO: time per frame?
+            name: "time per frame",
             type: "string",
             role: "state",
             read: true,
@@ -729,8 +729,8 @@ export function writeWorkUnitStates(
         type: "state",
         common: {
             name: "base credit",
-            type: "string",
-            role: "state",
+            type: "number",
+            role: "value",
             read: true,
             write: false,
         },
