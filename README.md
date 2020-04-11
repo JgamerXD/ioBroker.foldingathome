@@ -43,6 +43,10 @@ Configure hostname, port and password of the Folding@home instance. An empty pas
 
 ## Changelog
 
+### 0.0.4
+
+-   (JgamerXD) fix ppd on disconnect
+
 ### 0.0.3
 
 -   (JgamerXD) improved state roles and data types
