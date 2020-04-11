@@ -109,6 +109,8 @@ export function writeOtherStates(adapter: ioBroker.Adapter, connections: Array<F
             }
             combinedPPD += combinedConnectionPPD;
             adapter.setStateChangedAsync(`${fahc.connectionId}.ppd`, combinedConnectionPPD, true);
+        } else {
+            adapter.setStateChangedAsync(`${fahc.connectionId}.ppd`, 0, true);
         }
     }
     adapter.setStateChangedAsync("ppd", combinedPPD, true);

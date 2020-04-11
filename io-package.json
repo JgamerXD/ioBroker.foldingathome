@@ -1,7 +1,7 @@
 {
     "common": {
         "name": "foldingathome",
-        "version": "0.0.3",
+        "version": "0.0.4",
         "news": {
             "0.0.1": {
                 "en": "initial release",
@@ -22,6 +22,10 @@
             "0.0.3": {
                 "en": "additional states and improved state roles",
                 "de": "Mehr States und bessere Rollen"
+            },
+            "0.0.4": {
+                "en": "fix: set ppd to 0 on disconnect",
+                "de": "fix: Punkte/Tag bei Verbindungsende auf 0 setzen"
             }
         },
         "title": "Folding@home status",
